@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background: #f4efe6;
+  color: #102033;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: #f6e9c2;
+}
+
+.ticket {
+  background:
+    linear-gradient(180deg, rgba(255, 252, 247, 0.96), rgba(255, 252, 247, 0.92)),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 11px,
+      rgba(217, 208, 195, 0.35) 11px,
+      rgba(217, 208, 195, 0.35) 12px
+    );
+}
+
+.stamp {
+  border: 2px solid #b42318;
+  color: #b42318;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transform: rotate(-8deg);
+  font-weight: 700;
+  font-size: 10px;
+  padding: 3px 7px;
+  line-height: 1;
+  background: rgba(248, 228, 226, 0.85);
+}
+
+.rule-row + .rule-row {
+  border-top: 1px dashed #d9d0c3;
+}
