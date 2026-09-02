@@ -2,7 +2,7 @@
 
 ELI Outreach is the shipper business-development ops console for Elberta Logistics International (ELI). It is a phone-first, copy-only workstation: **this application never sends email**.
 
-Seeded accounts are fictional and stamped **EXAMPLE DATA**. Do not treat them as live shippers.
+Seeded accounts, when present, are fictional and stamped **EXAMPLE DATA**. Do not treat them as live shippers. `seedIfEmpty` does **not** insert fictional companies once the settings row exists — an empty real database is correct after purge. Operators add live accounts (`is_example = 0`) from Pipeline or the write APIs below.
 
 ## What it does
 
@@ -55,6 +55,25 @@ npm run dev
 The custom server binds `0.0.0.0` and listens on `process.env.PORT`, falling back to **3737**.
 
 SQLite lives under `/data` when that directory exists (Railway volume). Otherwise it uses `./data`. Override with `ELI_DATA_DIR` if needed.
+
+## Write path
+
+Real shipper accounts are written with `is_example = 0`. Seed data is example-only and is never written through these endpoints.
+
+`POST /api/companies` — create one real account. JSON body:
+
+- `name` (required)
+- `industry`, `city`, `state`, `phone`, `website`, `notes`
+- `stage` (default `next_up`)
+- `next_action_type` (default `call`)
+- `next_action_at`
+- `contact`: `{ first_name, last_name, title, phone, email }`
+
+Email may be `null`. Incomplete or invented-looking emails are rejected (`assertRealEmail`). A switchboard contact (for example first name `Shipping` with no last name) is allowed when there is no named person.
+
+`POST /api/companies/bulk` — `{ "companies": [ ... ] }` same object shape, max 50, all-or-nothing transaction. Use this to load a review batch.
+
+`POST /api/examples/purge` — permanently deletes every `is_example = 1` company and its contacts, drafts, activities, CRM records, and related DNC rows. Does not delete real (`is_example = 0`) rows. After purge, the next boot does not re-seed fake shippers.
 
 ## Railway — NEW project only
 

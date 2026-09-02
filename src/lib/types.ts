@@ -1,4 +1,4 @@
-import type { CompanyStage, DraftStatus } from "./constants";
+import type { CompanyStage, DraftStatus, NextActionType } from "./constants";
 
 export type Settings = {
   id: number;
@@ -22,7 +22,7 @@ export type Company = {
   notes: string;
   stage: CompanyStage;
   is_example: number;
-  next_action_type: "call" | "email" | "follow_up" | "none";
+  next_action_type: NextActionType;
   next_action_at: string | null;
   last_touch_at: string | null;
   created_at: string;
@@ -91,6 +91,28 @@ export type CompanyWithContacts = Company & {
   contacts: Contact[];
   dnc: boolean;
   crm: CrmRecord | null;
+};
+
+export type CompanyContactInput = {
+  first_name?: string;
+  last_name?: string;
+  title?: string;
+  phone?: string | null;
+  email?: string | null;
+};
+
+export type CompanyWriteInput = {
+  name: string;
+  industry?: string;
+  city?: string;
+  state?: string;
+  phone?: string | null;
+  website?: string | null;
+  notes?: string;
+  stage?: CompanyStage;
+  next_action_type?: NextActionType;
+  next_action_at?: string | null;
+  contact?: CompanyContactInput | null;
 };
 
 export type DraftView = Draft & {

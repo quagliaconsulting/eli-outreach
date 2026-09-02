@@ -4,6 +4,10 @@ import { fillLockedFirstTouch } from "./templates";
 import {
   DEFAULT_SENDER_NAME,
   DEFAULT_SENDER_PHONE,
+  FROM_EMAIL,
+  PACKET_URL,
+  REPLY_TO_EMAIL,
+  TIMEZONE,
 } from "./constants";
 
 type SeedCompany = {
@@ -312,8 +316,33 @@ const SEED: SeedCompany[] = [
   },
 ];
 
+function ensureSettings(db: Database.Database): boolean {
+  const settings = db.prepare("SELECT id FROM settings WHERE id = 1").get();
+  if (settings) return false;
+  db.prepare(
+    `INSERT INTO settings (
+      id, sender_name, sender_email, reply_to_email, sender_phone,
+      timezone, packet_url, fleet_counts_enabled
+    ) VALUES (1, ?, ?, ?, ?, ?, ?, 0)`,
+  ).run(
+    DEFAULT_SENDER_NAME,
+    FROM_EMAIL,
+    REPLY_TO_EMAIL,
+    DEFAULT_SENDER_PHONE,
+    TIMEZONE,
+    PACKET_URL,
+  );
+  return true;
+}
+
 export function seedIfEmpty(db: Database.Database): void {
-  const row = db.prepare("SELECT COUNT(*) AS n FROM companies").get() as { n: number };
+  ensureSettings(db);
+}
+
+export function seedExampleCompanies(db: Database.Database): void {
+  const row = db.prepare("SELECT COUNT(*) AS n FROM companies WHERE is_example = 1").get() as {
+    n: number;
+  };
   if (row.n > 0) return;
 
   const now = nowIso();

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { fillLockedFirstTouch } from "./templates";
 import {
+  assertRealEmail,
   displayEmail,
   validateFirstTouchContent,
   validateMarkSent,
@@ -78,5 +79,19 @@ describe("never invent emails", () => {
       () => validateMarkSent(null),
       (error: unknown) => error instanceof RuleError && error.code === "no_email_on_file",
     );
+  });
+
+  it("rejects incomplete invented-looking emails and allows a blank", () => {
+    assert.equal(assertRealEmail(null), null);
+    assert.equal(assertRealEmail(""), null);
+    assert.throws(
+      () => assertRealEmail("sam@"),
+      (error: unknown) => error instanceof RuleError && error.code === "invalid_email",
+    );
+    assert.throws(
+      () => assertRealEmail("not-an-email"),
+      (error: unknown) => error instanceof RuleError && error.code === "invalid_email",
+    );
+    assert.equal(assertRealEmail("pat.lee@published-shipper.com"), "pat.lee@published-shipper.com");
   });
 });
