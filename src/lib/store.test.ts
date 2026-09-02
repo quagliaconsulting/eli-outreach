@@ -10,25 +10,36 @@ process.env.ELI_DATA_DIR = tmp;
 
 describe("ops store rules", () => {
   let store: typeof import("./store");
+  let dbMod: typeof import("./db");
+  let seedMod: typeof import("./seed");
 
   before(async () => {
+    dbMod = await import("./db");
+    seedMod = await import("./seed");
     store = await import("./store");
     store.getSettings();
+    assert.equal(
+      store.listCompanies().length,
+      0,
+      "seedIfEmpty must not insert fictional companies once settings exist",
+    );
+    seedMod.seedExampleCompanies(dbMod.getDb());
   });
 
   after(() => {
+    dbMod.closeDb();
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
-  it("seeds example companies and keeps fleet counts off", () => {
+  it("loads example companies as is_example=1 and keeps fleet counts off", () => {
     const settings = store.getSettings();
     assert.equal(settings.fleet_counts_enabled, 0);
     assert.equal(settings.sender_email, "max@elbertalogistics.net");
     assert.equal(settings.reply_to_email, "max@elbertalogistics.net");
     assert.equal(settings.timezone, "America/New_York");
-    const companies = store.listCompanies();
-    assert.ok(companies.length >= 8 && companies.length <= 12);
-    assert.ok(companies.every((c) => c.is_example === 1));
+    const examples = store.listCompanies().filter((c) => c.is_example === 1);
+    assert.ok(examples.length >= 8 && examples.length <= 12);
+    assert.ok(examples.every((c) => c.is_example === 1));
   });
 
   it("blocks first-touch for a DNC account", () => {
@@ -85,5 +96,229 @@ describe("ops store rules", () => {
       () => store.markDraftSent(approved.id),
       (error: unknown) => error instanceof RuleError && error.code === "no_email_on_file",
     );
+  });
+
+  it("createCompany writes a real next_up account with is_example 0", () => {
+    const company = store.createCompany({
+      name: "Wiregrass Building Supply",
+      industry: "Building materials",
+      city: "Dothan",
+      state: "AL",
+      phone: "334-702-0100",
+    });
+    assert.equal(company.is_example, 0);
+    assert.equal(company.stage, "next_up");
+    assert.equal(company.next_action_type, "call");
+    assert.equal(company.contacts.length, 0);
+    assert.notEqual(
+      store.listCompanies().find((c) => c.name === "Pinecrest Produce Co.")?.is_example,
+      0,
+    );
+  });
+
+  it("allows a switchboard-only contact and a published email, and rejects invented-looking email", () => {
+    const board = store.createCompany({
+      name: "Chipley Cold Storage",
+      contact: { first_name: "Shipping", last_name: "" },
+    });
+    assert.equal(board.is_example, 0);
+    assert.equal(board.contacts[0].first_name, "Shipping");
+    assert.equal(board.contacts[0].last_name, "");
+    assert.equal(board.contacts[0].email, null);
+    assert.equal(board.contacts[0].is_example, 0);
+
+    const published = store.createCompany({
+      name: "Published Email Shipper",
+      contact: {
+        first_name: "Pat",
+        last_name: "Lee",
+        email: "pat.lee@published-shipper.com",
+      },
+    });
+    assert.equal(published.contacts[0].email, "pat.lee@published-shipper.com");
+
+    assert.throws(
+      () =>
+        store.createCompany({
+          name: "Invented Email Shipper",
+          contact: { first_name: "Sam", email: "sam@" },
+        }),
+      (error: unknown) => error instanceof RuleError && error.code === "invalid_email",
+    );
+    assert.equal(
+      store.listCompanies().some((c) => c.name === "Invented Email Shipper"),
+      false,
+    );
+  });
+
+  it("bulk-creates real companies atomically and caps at 50", () => {
+    const created = store.createCompaniesBulk([
+      { name: "Bulk One Co" },
+      { name: "Bulk Two Co", contact: { first_name: "Shipping" } },
+    ]);
+    assert.equal(created.length, 2);
+    assert.ok(created.every((c) => c.is_example === 0));
+
+    assert.throws(
+      () =>
+        store.createCompaniesBulk([
+          { name: "Bulk Should Rollback" },
+          { name: "Bulk Bad Email", contact: { first_name: "A", email: "not-an-email" } },
+        ]),
+      (error: unknown) => error instanceof RuleError && error.code === "invalid_email",
+    );
+    assert.equal(
+      store.listCompanies().some((c) => c.name === "Bulk Should Rollback"),
+      false,
+    );
+
+    assert.throws(
+      () => store.createCompaniesBulk(Array.from({ length: 51 }, (_, i) => ({ name: `Too Many ${i}` }))),
+      (error: unknown) => error instanceof RuleError && error.code === "validation",
+    );
+  });
+
+  it("purges example rows only and does not re-seed when settings already exist", () => {
+    const real = store.createCompany({
+      name: "Live Review Shipper",
+      stage: "working",
+      contact: { first_name: "Jordan", last_name: "Miles", email: "jordan.miles@livereview.example" },
+    });
+    store.addDnc({
+      company_id: real.id,
+      reason: "Keep this real DNC through purge.",
+    });
+    const realDraft = store.createFirstTouchDraft({
+      company_id: real.id,
+      contact_id: real.contacts[0].id,
+      hook_line: "you ship from the wiregrass and may need dry van truckload",
+    });
+    assert.equal(realDraft.status, "blocked");
+
+    const before = store.listCompanies();
+    const exampleIds = before.filter((c) => c.is_example === 1).map((c) => c.id);
+    const realIds = before.filter((c) => c.is_example === 0).map((c) => c.id);
+    assert.ok(exampleIds.length >= 8);
+    assert.ok(realIds.includes(real.id));
+
+    const database = dbMod.getDb();
+    const exampleDraftsBefore = (
+      database
+        .prepare(
+          `SELECT COUNT(*) AS n FROM drafts
+           WHERE company_id IN (SELECT id FROM companies WHERE is_example = 1)`,
+        )
+        .get() as { n: number }
+    ).n;
+    const exampleCrmBefore = (
+      database
+        .prepare(
+          `SELECT COUNT(*) AS n FROM crm_records
+           WHERE company_id IN (SELECT id FROM companies WHERE is_example = 1)`,
+        )
+        .get() as { n: number }
+    ).n;
+    const exampleDncBefore = (
+      database
+        .prepare(
+          `SELECT COUNT(*) AS n FROM dnc
+           WHERE company_id IN (SELECT id FROM companies WHERE is_example = 1)`,
+        )
+        .get() as { n: number }
+    ).n;
+    assert.ok(exampleDraftsBefore > 0);
+    assert.ok(exampleCrmBefore > 0);
+    assert.ok(exampleDncBefore > 0);
+
+    const result = store.purgeExampleCompanies();
+    assert.equal(result.purged, exampleIds.length);
+
+    const after = store.listCompanies();
+    assert.ok(after.every((c) => c.is_example === 0));
+    assert.ok(realIds.every((id) => after.some((c) => c.id === id)));
+    assert.ok(exampleIds.every((id) => !after.some((c) => c.id === id)));
+
+    assert.equal(
+      (database.prepare("SELECT COUNT(*) AS n FROM companies WHERE is_example = 1").get() as { n: number }).n,
+      0,
+    );
+    assert.equal(
+      (
+        database
+          .prepare(
+            `SELECT COUNT(*) AS n FROM contacts
+             WHERE company_id IN (${exampleIds.map(() => "?").join(",")})`,
+          )
+          .get(...exampleIds) as { n: number }
+      ).n,
+      0,
+    );
+    assert.equal(
+      (
+        database
+          .prepare(
+            `SELECT COUNT(*) AS n FROM drafts
+             WHERE company_id IN (${exampleIds.map(() => "?").join(",")})`,
+          )
+          .get(...exampleIds) as { n: number }
+      ).n,
+      0,
+    );
+    assert.equal(
+      (
+        database
+          .prepare(
+            `SELECT COUNT(*) AS n FROM activities
+             WHERE company_id IN (${exampleIds.map(() => "?").join(",")})`,
+          )
+          .get(...exampleIds) as { n: number }
+      ).n,
+      0,
+    );
+    assert.equal(
+      (
+        database
+          .prepare(
+            `SELECT COUNT(*) AS n FROM crm_records
+             WHERE company_id IN (${exampleIds.map(() => "?").join(",")})`,
+          )
+          .get(...exampleIds) as { n: number }
+      ).n,
+      0,
+    );
+    assert.equal(
+      (
+        database
+          .prepare(
+            `SELECT COUNT(*) AS n FROM dnc
+             WHERE company_id IN (${exampleIds.map(() => "?").join(",")})`,
+          )
+          .get(...exampleIds) as { n: number }
+      ).n,
+      0,
+    );
+
+    const kept = store.getCompany(real.id);
+    assert.equal(kept.is_example, 0);
+    assert.equal(kept.stage, "dnc");
+    assert.equal(kept.contacts[0].email, "jordan.miles@livereview.example");
+    assert.ok(kept.dnc);
+    assert.ok(store.listDrafts().some((d) => d.id === realDraft.id));
+
+    seedMod.seedIfEmpty(database);
+    assert.equal(
+      (database.prepare("SELECT COUNT(*) AS n FROM companies WHERE is_example = 1").get() as { n: number }).n,
+      0,
+    );
+
+    dbMod.closeDb();
+    const reopened = dbMod.getDb();
+    const settings = reopened.prepare("SELECT id FROM settings WHERE id = 1").get();
+    assert.ok(settings);
+    assert.equal(
+      (reopened.prepare("SELECT COUNT(*) AS n FROM companies WHERE is_example = 1").get() as { n: number }).n,
+      0,
+    );
+    assert.ok(store.listCompanies().some((c) => c.id === real.id && c.is_example === 0));
   });
 });

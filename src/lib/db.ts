@@ -1,14 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
-import {
-  DEFAULT_SENDER_NAME,
-  DEFAULT_SENDER_PHONE,
-  FROM_EMAIL,
-  PACKET_URL,
-  REPLY_TO_EMAIL,
-  TIMEZONE,
-} from "./constants";
 import { seedIfEmpty } from "./seed";
 
 declare global {
@@ -42,6 +34,12 @@ export function getDb(): Database.Database {
   seedIfEmpty(db);
   global.__eliOutreachDb = db;
   return db;
+}
+
+export function closeDb(): void {
+  if (!global.__eliOutreachDb) return;
+  global.__eliOutreachDb.close();
+  global.__eliOutreachDb = undefined;
 }
 
 function migrate(db: Database.Database): void {
@@ -133,21 +131,4 @@ function migrate(db: Database.Database): void {
       updated_at TEXT NOT NULL
     );
   `);
-
-  const settings = db.prepare("SELECT id FROM settings WHERE id = 1").get();
-  if (!settings) {
-    db.prepare(
-      `INSERT INTO settings (
-        id, sender_name, sender_email, reply_to_email, sender_phone,
-        timezone, packet_url, fleet_counts_enabled
-      ) VALUES (1, ?, ?, ?, ?, ?, ?, 0)`,
-    ).run(
-      DEFAULT_SENDER_NAME,
-      FROM_EMAIL,
-      REPLY_TO_EMAIL,
-      DEFAULT_SENDER_PHONE,
-      TIMEZONE,
-      PACKET_URL,
-    );
-  }
 }

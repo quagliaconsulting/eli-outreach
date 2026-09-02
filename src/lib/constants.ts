@@ -18,6 +18,9 @@ export const COMPANY_STAGES = [
 ] as const;
 export type CompanyStage = (typeof COMPANY_STAGES)[number];
 
+export const NEXT_ACTION_TYPES = ["call", "email", "follow_up", "none"] as const;
+export type NextActionType = (typeof NEXT_ACTION_TYPES)[number];
+
 export const DRAFT_STATUSES = [
   "draft",
   "approved",

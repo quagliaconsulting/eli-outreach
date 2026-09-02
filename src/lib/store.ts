@@ -3,6 +3,7 @@ import { nowIso } from "./clock";
 import {
   COMPANY_STAGES,
   FROM_EMAIL,
+  NEXT_ACTION_TYPES,
   PACKET_URL,
   PIPELINE_COLUMNS,
   REPLY_TO_EMAIL,
@@ -23,6 +24,7 @@ import {
   RuleError,
   type Activity,
   type Company,
+  type CompanyWriteInput,
   type CompanyWithContacts,
   type Contact,
   type CrmRecord,
@@ -104,6 +106,145 @@ function hydrateCompany(company: Company): CompanyWithContacts {
     dnc: isCompanyDnc(company, contacts),
     crm,
   };
+}
+
+function normalizeCompanyWrite(input: CompanyWriteInput) {
+  const name = input.name?.trim() ?? "";
+  if (!name) throw new RuleError("Company name is required.", "validation");
+
+  const stage = input.stage ?? "next_up";
+  if (!COMPANY_STAGES.includes(stage)) {
+    throw new RuleError("Unknown stage.", "bad_stage");
+  }
+
+  const next_action_type = input.next_action_type ?? "call";
+  if (!NEXT_ACTION_TYPES.includes(next_action_type)) {
+    throw new RuleError("Unknown next action type.", "validation");
+  }
+
+  const email = assertRealEmail(input.contact?.email ?? null);
+  let contact: {
+    first_name: string;
+    last_name: string;
+    title: string;
+    phone: string | null;
+    email: string | null;
+  } | null = null;
+
+  if (input.contact) {
+    const first = input.contact.first_name?.trim() ?? "";
+    const last = input.contact.last_name?.trim() ?? "";
+    const title = input.contact.title?.trim() ?? "";
+    const phone = input.contact.phone?.trim() || null;
+    if (first || last || title || phone || email) {
+      if (!first) {
+        throw new RuleError(
+          "Contact first name is required. Use a switchboard name like Shipping if there is no named person.",
+          "validation",
+        );
+      }
+      contact = { first_name: first, last_name: last, title, phone, email };
+    }
+  }
+
+  return {
+    name,
+    industry: input.industry?.trim() ?? "",
+    city: input.city?.trim() ?? "",
+    state: input.state?.trim() ?? "",
+    phone: input.phone?.trim() || null,
+    website: input.website?.trim() || null,
+    notes: input.notes?.trim() ?? "",
+    stage,
+    next_action_type,
+    next_action_at: input.next_action_at?.trim() || null,
+    contact,
+  };
+}
+
+export function createCompany(input: CompanyWriteInput): CompanyWithContacts {
+  const data = normalizeCompanyWrite(input);
+  const now = nowIso();
+
+  const insert = db().transaction(() => {
+    const result = db()
+      .prepare(
+        `INSERT INTO companies (
+          name, industry, city, state, phone, website, notes, stage, is_example,
+          next_action_type, next_action_at, last_touch_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, NULL, ?, ?)`,
+      )
+      .run(
+        data.name,
+        data.industry,
+        data.city,
+        data.state,
+        data.phone,
+        data.website,
+        data.notes,
+        data.stage,
+        data.next_action_type,
+        data.next_action_at,
+        now,
+        now,
+      );
+    const id = Number(result.lastInsertRowid);
+    if (data.contact) {
+      db()
+        .prepare(
+          `INSERT INTO contacts (
+            company_id, first_name, last_name, title, phone, email, is_primary, is_example
+          ) VALUES (?, ?, ?, ?, ?, ?, 1, 0)`,
+        )
+        .run(
+          id,
+          data.contact.first_name,
+          data.contact.last_name,
+          data.contact.title,
+          data.contact.phone,
+          data.contact.email,
+        );
+    }
+    logActivity(id, null, "created", "Real account created.");
+    return id;
+  });
+
+  return getCompany(insert());
+}
+
+export function createCompaniesBulk(companies: CompanyWriteInput[]): CompanyWithContacts[] {
+  if (!Array.isArray(companies) || companies.length === 0) {
+    throw new RuleError("companies array is required.", "validation");
+  }
+  if (companies.length > 50) {
+    throw new RuleError("Bulk create is limited to 50 companies.", "validation");
+  }
+  const txn = db().transaction((items: CompanyWriteInput[]) => items.map((item) => createCompany(item)));
+  return txn(companies);
+}
+
+export function purgeExampleCompanies(): { purged: number } {
+  const txn = db().transaction(() => {
+    const targets = db()
+      .prepare("SELECT id FROM companies WHERE is_example = 1")
+      .all() as { id: number }[];
+    if (targets.length === 0) return 0;
+
+    const exampleCompanies = `company_id IN (SELECT id FROM companies WHERE is_example = 1)`;
+    const exampleContacts = `contact_id IN (
+      SELECT id FROM contacts
+      WHERE is_example = 1 OR ${exampleCompanies}
+    )`;
+
+    db().prepare(`DELETE FROM drafts WHERE ${exampleCompanies}`).run();
+    db().prepare(`DELETE FROM activities WHERE ${exampleCompanies}`).run();
+    db().prepare(`DELETE FROM crm_records WHERE ${exampleCompanies}`).run();
+    db().prepare(`DELETE FROM dnc WHERE ${exampleCompanies} OR ${exampleContacts}`).run();
+    db().prepare(`DELETE FROM contacts WHERE ${exampleCompanies}`).run();
+    db().prepare("DELETE FROM companies WHERE is_example = 1").run();
+    return targets.length;
+  });
+  return { purged: txn() };
 }
 
 export function updateCompanyStage(id: number, stage: CompanyStage): CompanyWithContacts {
