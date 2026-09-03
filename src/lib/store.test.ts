@@ -626,4 +626,41 @@ describe("ops store rules", () => {
       mail.setMailTransporterFactory(null);
     }
   });
+
+  it("does not mark sent when the mocked transporter throws", async () => {
+    const mail = await import("./mail");
+    process.env.SEND_ENABLED = "true";
+    process.env.SMTP_PASS = "app-password-not-for-repo";
+    mail.setMailTransporterFactory(() => ({
+      async sendMail() {
+        throw new Error("connection refused");
+      },
+    }));
+    try {
+      const company = store.createCompany({
+        name: "SMTP Fail Co",
+        contact: {
+          first_name: "Pat",
+          last_name: "Lee",
+          email: "pat.lee@smtp-fail.example",
+        },
+      });
+      const draft = store.createFirstTouchDraft({
+        company_id: company.id,
+        contact_id: company.contacts[0].id,
+        hook_line: "you ship from the wiregrass and may need dry van truckload",
+      });
+      await assert.rejects(
+        () => store.approveAndSendDraft(draft.id),
+        (error: unknown) => error instanceof RuleError && error.code === "smtp_send_failed",
+      );
+      const unchanged = store.getDraft(draft.id);
+      assert.equal(unchanged.status, "draft");
+      assert.equal(unchanged.sent_at, null);
+    } finally {
+      delete process.env.SEND_ENABLED;
+      delete process.env.SMTP_PASS;
+      mail.setMailTransporterFactory(null);
+    }
+  });
 });

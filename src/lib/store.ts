@@ -580,12 +580,20 @@ export async function approveAndSendDraft(id: number): Promise<DraftView> {
   }
 
   const to = requirePublishedEmail(draft.contact_email, "Send");
-  await sendFirstTouchEmail({
-    to,
-    subject: draft.subject,
-    text: draft.body,
-    senderName: settings.sender_name,
-  });
+  try {
+    await sendFirstTouchEmail({
+      to,
+      subject: draft.subject,
+      text: draft.body,
+      senderName: settings.sender_name,
+    });
+  } catch (error) {
+    if (error instanceof RuleError) throw error;
+    throw new RuleError(
+      "Could not send first-touch via SMTP. The draft was not marked sent.",
+      "smtp_send_failed",
+    );
+  }
 
   const now = nowIso();
   db()
