@@ -46,7 +46,7 @@ export function validateFirstTouchContent(input: {
   const hook = input.hookLine.trim();
   if (hook.length < 12) {
     throw new RuleError(
-      "Hook line is too thin. Write why this shipper is being called — do not invent an email.",
+      "Hook line is too thin. Write why this shipper is a fit — do not invent an email.",
       "thin_hook",
     );
   }
@@ -84,7 +84,7 @@ export function validateMarkSent(email: string | null | undefined): string {
   const onFile = displayEmail(email);
   if (!onFile) {
     throw new RuleError(
-      "No email on file. Do not invent one. Mark sent is blocked — use the phone.",
+      "No email on file. Do not invent one. Mark sent is blocked.",
       "no_email_on_file",
     );
   }

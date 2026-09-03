@@ -321,4 +321,57 @@ describe("ops store rules", () => {
     );
     assert.ok(store.listCompanies().some((c) => c.id === real.id && c.is_example === 0));
   });
+
+  it("lists named decision-makers with auto first-touch drafts and hides switchboard and DNC", () => {
+    const shipping = store.createCompany({
+      name: "Switchboard Only Co",
+      stage: "backfill",
+      contact: { first_name: "Shipping" },
+    });
+    const named = store.createCompany({
+      name: "Named Decision Co",
+      industry: "Food processing",
+      city: "Valdosta",
+      state: "GA",
+      notes: "Plant ships dry van outbound to Florida DCs.",
+      contact: {
+        first_name: "Rita",
+        last_name: "Cole",
+        title: "Transportation Manager",
+        phone: "229-555-0199",
+        email: "rita.cole@named-decision.example",
+      },
+    });
+    assert.equal(store.listDrafts().some((draft) => draft.company_id === named.id), false);
+
+    const open = store.getWorkstation("open");
+    assert.equal(
+      open.leads.some((lead) => lead.company.id === shipping.id),
+      false,
+    );
+    const lead = open.leads.find((item) => item.company.id === named.id);
+    assert.ok(lead);
+    assert.equal(lead.contact.first_name, "Rita");
+    assert.equal(lead.contact.title, "Transportation Manager");
+    assert.ok(lead.draft);
+    assert.equal(lead.draft.status, "draft");
+    assert.equal(lead.draft.subject, "Named Decision Co truckload capacity — 15 minutes?");
+    assert.match(lead.draft.body, /Plant ships dry van outbound to Florida DCs/);
+    assert.match(lead.draft.body, /https:\/\/elbertalogistics.com\/services\//);
+    assert.doesNotMatch(lead.draft.body, /phone first/i);
+
+    const again = store.getWorkstation("open");
+    assert.equal(again.leads.find((item) => item.company.id === named.id)?.draft?.id, lead.draft.id);
+
+    const dncNamed = store.createCompany({
+      name: "Quiet DNC Plant",
+      contact: { first_name: "Owen", last_name: "Blake", title: "Logistics Manager" },
+    });
+    store.addDnc({ company_id: dncNamed.id, reason: "Do not contact." });
+    const afterDnc = store.getWorkstation("open");
+    assert.equal(
+      afterDnc.leads.some((item) => item.company.id === dncNamed.id),
+      false,
+    );
+  });
 });

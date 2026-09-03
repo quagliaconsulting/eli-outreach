@@ -124,6 +124,23 @@ export type DraftView = Draft & {
   is_example: number;
 };
 
+export type WorkstationFilter = "open" | "sent" | "all";
+
+export type LeadView = {
+  company: CompanyWithContacts;
+  contact: Contact;
+  draft: DraftView | null;
+};
+
+export type Workstation = {
+  settings: Settings;
+  leads: LeadView[];
+  counts: {
+    open: number;
+    sent: number;
+  };
+};
+
 export class RuleError extends Error {
   constructor(
     message: string,

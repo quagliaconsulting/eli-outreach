@@ -1,11 +1,11 @@
 import { fail, ok } from "@/lib/http";
-import { getTodayBoard } from "@/lib/store";
+import { getWorkstation } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
 export function GET() {
   try {
-    return ok(getTodayBoard());
+    return ok(getWorkstation("open"));
   } catch (error) {
     return fail(error);
   }
