@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveDataDir } from "@/lib/db";
+import { isSendEnabled } from "@/lib/smtp";
 import { getSettings } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,6 @@ export function GET() {
     timezone: settings.timezone,
     from: settings.sender_email,
     dataDir: resolveDataDir(),
-    send: false,
+    send: isSendEnabled(),
   });
 }

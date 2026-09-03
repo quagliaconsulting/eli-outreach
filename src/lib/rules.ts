@@ -80,15 +80,22 @@ export function validateFirstTouchContent(input: {
   }
 }
 
-export function validateMarkSent(email: string | null | undefined): string {
+export function requirePublishedEmail(
+  email: string | null | undefined,
+  action = "Send",
+): string {
   const onFile = displayEmail(email);
   if (!onFile) {
     throw new RuleError(
-      "No email on file. Do not invent one. Mark sent is blocked.",
+      `No email on file. Do not invent one. ${action} is blocked.`,
       "no_email_on_file",
     );
   }
   return onFile;
+}
+
+export function validateMarkSent(email: string | null | undefined): string {
+  return requirePublishedEmail(email, "Mark sent");
 }
 
 export function mailtoHref(input: {

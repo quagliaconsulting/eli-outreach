@@ -47,12 +47,14 @@ export function Button({
   disabled,
   tone = "navy",
   type = "button",
+  title,
 }: {
   children: ReactNode;
   onClick?: () => void;
   disabled?: boolean;
   tone?: "navy" | "forest" | "ghost" | "danger";
   type?: "button" | "submit";
+  title?: string;
 }) {
   const tones = {
     navy: "bg-navy text-paper hover:bg-navy-mid",
@@ -65,6 +67,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
+      title={title}
       className={`inline-flex items-center justify-center rounded-md px-3 py-1.5 text-[13px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${tones[tone]}`}
     >
       {children}

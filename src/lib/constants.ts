@@ -47,9 +47,9 @@ Elberta Logistics International
 export const OPS_RULES = [
   {
     id: "no-send",
-    title: "Never send email from this console",
+    title: "Send only when SMTP is enabled",
     detail:
-      "No SMTP, Gmail, or any outbound mail. Approve, copy, and mark sent only.",
+      "Approve sends first-touch via Namecheap SMTP only when SEND_ENABLED and SMTP_PASS are set. Otherwise copy-only. Never invent emails. Never send as sales@.",
   },
   {
     id: "no-invent-email",

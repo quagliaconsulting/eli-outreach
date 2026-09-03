@@ -25,7 +25,7 @@ const plexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "ELI Outreach",
-  description: "Qualified shipper leads and first-touch drafts for Elberta Logistics International. This console never sends email.",
+  description: "Qualified shipper leads and first-touch drafts for Elberta Logistics International.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
