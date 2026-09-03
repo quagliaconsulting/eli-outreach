@@ -152,6 +152,7 @@ export type WorkstationQuery = {
 
 export type Workstation = {
   settings: Settings;
+  send: boolean;
   leads: LeadView[];
   counts: {
     open: number;

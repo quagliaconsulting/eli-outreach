@@ -96,7 +96,9 @@ export default function LeadsPage() {
         <div>
           <h1 className="font-serif text-4xl">Qualified leads</h1>
           <p className="mt-2 max-w-2xl text-sm text-ink-muted">
-            Named decision-makers with contact info and a locked first-touch draft. Approve, copy, mark sent. There is no Send.
+            {board.send
+              ? "Named decision-makers with a locked first-touch draft. Approve sends from max@elbertalogistics.net, then marks sent. Copy and Mark sent stay available for manual fallback."
+              : "Named decision-makers with contact info and a locked first-touch draft. Approve, copy, mark sent. Send is off — copy into your own mail client."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -224,9 +226,15 @@ export default function LeadsPage() {
                 {draft.blocked_reason ? <p className="mt-3 text-sm text-stamp">{draft.blocked_reason}</p> : null}
                 <div className="mt-4 flex flex-wrap gap-2">
                   {draft.status === "draft" ? (
-                    <Button tone="forest" onClick={() => void act(draft.id, "approve")}>
-                      Approve
-                    </Button>
+                    board.send && !contact.email ? (
+                      <Button tone="forest" disabled title="No email on file — cannot send">
+                        Approve
+                      </Button>
+                    ) : (
+                      <Button tone="forest" onClick={() => void act(draft.id, "approve")}>
+                        Approve
+                      </Button>
+                    )
                   ) : null}
                   {draft.status !== "blocked" ? (
                     <Button
@@ -240,6 +248,11 @@ export default function LeadsPage() {
                     <Button onClick={() => void act(draft.id, "mark-sent")}>Mark sent</Button>
                   ) : null}
                 </div>
+                {board.send && draft.status === "draft" && !contact.email ? (
+                  <p className="mt-2 text-sm text-stamp">
+                    Approve is disabled — no published email on this lead. Do not invent one.
+                  </p>
+                ) : null}
               </>
             ) : (
               <p className="mt-4 text-sm text-ink-muted">No first-touch draft on file.</p>

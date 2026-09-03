@@ -17,9 +17,12 @@ import {
   assertRealEmail,
   normalizeEmail,
   normalizePhone,
+  requirePublishedEmail,
   validateFirstTouchContent,
   validateMarkSent,
 } from "./rules";
+import { sendFirstTouchEmail } from "./mail";
+import { isSendEnabled } from "./smtp";
 import { fillLockedFirstTouch, isLockedFirstTouch } from "./templates";
 import {
   RuleError,
@@ -515,7 +518,12 @@ export function createFirstTouchDraft(input: {
   return getDraft(Number(result.lastInsertRowid));
 }
 
-export function approveDraft(id: number): DraftView {
+function loadApprovableDraft(id: number): {
+  draft: DraftView;
+  company: CompanyWithContacts;
+  contact: Contact;
+  settings: Settings;
+} {
   const draft = getDraft(id);
   const company = getCompany(draft.company_id);
   const contact = company.contacts.find((c) => c.id === draft.contact_id);
@@ -542,11 +550,58 @@ export function approveDraft(id: number): DraftView {
     });
   }
 
+  return { draft, company, contact, settings };
+}
+
+export function approveDraft(id: number): DraftView {
+  const { company, contact } = loadApprovableDraft(id);
   const now = nowIso();
   db()
     .prepare("UPDATE drafts SET status = 'approved', approved_at = ? WHERE id = ?")
     .run(now, id);
   logActivity(company.id, contact.id, "draft_approved", `Approved draft #${id}. Not sent.`);
+  return getDraft(id);
+}
+
+export async function approveAndSendDraft(id: number): Promise<DraftView> {
+  if (!isSendEnabled()) {
+    throw new RuleError(
+      "Email send is off. Copy the draft or mark sent after sending from your own client.",
+      "send_disabled",
+    );
+  }
+
+  const { draft, company, contact, settings } = loadApprovableDraft(id);
+  if (draft.status === "sent") {
+    throw new RuleError("This draft was already sent.", "already_sent");
+  }
+  if (draft.status === "blocked") {
+    throw new RuleError("Blocked drafts cannot be sent.", "blocked");
+  }
+
+  const to = requirePublishedEmail(draft.contact_email, "Send");
+  await sendFirstTouchEmail({
+    to,
+    subject: draft.subject,
+    text: draft.body,
+    senderName: settings.sender_name,
+  });
+
+  const now = nowIso();
+  db()
+    .prepare(
+      "UPDATE drafts SET status = 'sent', approved_at = COALESCE(approved_at, ?), sent_at = ? WHERE id = ?",
+    )
+    .run(now, now, id);
+  db()
+    .prepare("UPDATE companies SET last_touch_at = ?, updated_at = ? WHERE id = ?")
+    .run(now, now, draft.company_id);
+  logActivity(
+    company.id,
+    contact.id,
+    "draft_sent",
+    `Sent first-touch via SMTP from ${FROM_EMAIL}.`,
+  );
   return getDraft(id);
 }
 
@@ -781,6 +836,7 @@ export function getWorkstation(
 
   return {
     settings,
+    send: isSendEnabled(),
     leads: visible,
     counts: {
       open: open.length,

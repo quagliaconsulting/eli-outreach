@@ -449,5 +449,181 @@ describe("ops store rules", () => {
       tierA.leads.some((lead) => lead.company.id === phoneOnly.id),
       false,
     );
+    assert.equal(store.getWorkstation("open").send, false);
+  });
+
+  it("blocks SMTP send when the lead is DNC", async () => {
+    const mail = await import("./mail");
+    process.env.SEND_ENABLED = "true";
+    process.env.SMTP_PASS = "app-password-not-for-repo";
+    const sent: unknown[] = [];
+    mail.setMailTransporterFactory(() => ({
+      async sendMail(payload) {
+        sent.push(payload);
+        return {};
+      },
+    }));
+    try {
+      const company = store.createCompany({
+        name: "SMTP DNC Plant",
+        contact: {
+          first_name: "Dana",
+          last_name: "Cole",
+          title: "Logistics Manager",
+          email: "dana.cole@smtp-dnc.example",
+        },
+      });
+      store.addDnc({ company_id: company.id, reason: "Quiet suppress." });
+      const draft = store.createFirstTouchDraft({
+        company_id: company.id,
+        contact_id: company.contacts[0].id,
+        hook_line: "you ship from the wiregrass and may need dry van truckload",
+      });
+      assert.equal(draft.status, "blocked");
+      await assert.rejects(
+        () => store.approveAndSendDraft(draft.id),
+        (error: unknown) => error instanceof RuleError && error.code === "dnc_blocks_first_touch",
+      );
+      assert.equal(store.getDraft(draft.id).status, "blocked");
+      assert.equal(sent.length, 0);
+    } finally {
+      delete process.env.SEND_ENABLED;
+      delete process.env.SMTP_PASS;
+      mail.setMailTransporterFactory(null);
+    }
+  });
+
+  it("blocks SMTP send when the lead has no published email", async () => {
+    const mail = await import("./mail");
+    process.env.SEND_ENABLED = "true";
+    process.env.SMTP_PASS = "app-password-not-for-repo";
+    const sent: unknown[] = [];
+    mail.setMailTransporterFactory(() => ({
+      async sendMail(payload) {
+        sent.push(payload);
+        return {};
+      },
+    }));
+    try {
+      const company = store.createCompany({
+        name: "SMTP No Email Co",
+        contact: { first_name: "Kim", last_name: "Noemail", title: "Traffic Manager" },
+      });
+      const draft = store.createFirstTouchDraft({
+        company_id: company.id,
+        contact_id: company.contacts[0].id,
+        hook_line: "you ship packaging from Albany and may need dry van truckload",
+      });
+      await assert.rejects(
+        () => store.approveAndSendDraft(draft.id),
+        (error: unknown) => error instanceof RuleError && error.code === "no_email_on_file",
+      );
+      assert.equal(store.getDraft(draft.id).status, "draft");
+      assert.equal(store.getDraft(draft.id).sent_at, null);
+      assert.equal(sent.length, 0);
+    } finally {
+      delete process.env.SEND_ENABLED;
+      delete process.env.SMTP_PASS;
+      mail.setMailTransporterFactory(null);
+    }
+  });
+
+  it("keeps copy-only Approve when SEND_ENABLED is false even if SMTP_PASS is set", async () => {
+    const mail = await import("./mail");
+    process.env.SEND_ENABLED = "false";
+    process.env.SMTP_PASS = "app-password-not-for-repo";
+    const sent: unknown[] = [];
+    mail.setMailTransporterFactory(() => ({
+      async sendMail(payload) {
+        sent.push(payload);
+        return {};
+      },
+    }));
+    try {
+      const company = store.createCompany({
+        name: "SMTP Flag Off Co",
+        contact: {
+          first_name: "Lee",
+          last_name: "Park",
+          email: "lee.park@smtp-flag-off.example",
+        },
+      });
+      const draft = store.createFirstTouchDraft({
+        company_id: company.id,
+        contact_id: company.contacts[0].id,
+        hook_line: "you ship from the wiregrass and may need dry van truckload",
+      });
+      await assert.rejects(
+        () => store.approveAndSendDraft(draft.id),
+        (error: unknown) => error instanceof RuleError && error.code === "send_disabled",
+      );
+      const approved = store.approveDraft(draft.id);
+      assert.equal(approved.status, "approved");
+      assert.equal(approved.sent_at, null);
+      assert.equal(sent.length, 0);
+    } finally {
+      delete process.env.SEND_ENABLED;
+      delete process.env.SMTP_PASS;
+      mail.setMailTransporterFactory(null);
+    }
+  });
+
+  it("sends the locked draft then marks sent when SMTP is enabled", async () => {
+    const mail = await import("./mail");
+    process.env.SEND_ENABLED = "true";
+    process.env.SMTP_HOST = "mail.privateemail.com";
+    process.env.SMTP_PORT = "465";
+    process.env.SMTP_SECURE = "true";
+    process.env.SMTP_USER = "max@elbertalogistics.net";
+    process.env.SMTP_PASS = "app-password-not-for-repo";
+    const sent: Array<{ from: string; to: string; replyTo: string; subject: string; text: string }> = [];
+    mail.setMailTransporterFactory(() => ({
+      async sendMail(payload) {
+        sent.push(payload);
+        return { messageId: "mock-store-send" };
+      },
+    }));
+    try {
+      const company = store.createCompany({
+        name: "SMTP Send Success Co",
+        industry: "Food processing",
+        city: "Valdosta",
+        state: "GA",
+        contact: {
+          first_name: "Rita",
+          last_name: "Cole",
+          title: "Transportation Manager",
+          email: "rita.send@smtp-success.example",
+        },
+      });
+      const draft = store.createFirstTouchDraft({
+        company_id: company.id,
+        contact_id: company.contacts[0].id,
+        hook_line: "you ship food from Valdosta and may need dry van truckload",
+      });
+      assert.equal(draft.status, "draft");
+      const result = await store.approveAndSendDraft(draft.id);
+      assert.equal(result.status, "sent");
+      assert.ok(result.sent_at);
+      assert.ok(result.approved_at);
+      assert.equal(sent.length, 1);
+      assert.equal(sent[0].to, "rita.send@smtp-success.example");
+      assert.equal(sent[0].from, "Max <max@elbertalogistics.net>");
+      assert.equal(sent[0].replyTo, "max@elbertalogistics.net");
+      assert.equal(sent[0].subject, draft.subject);
+      assert.equal(sent[0].text, draft.body);
+      assert.doesNotMatch(sent[0].from, /sales@/i);
+      const board = store.getWorkstation("sent");
+      assert.equal(board.send, true);
+      assert.ok(board.leads.some((lead) => lead.draft?.id === result.id && lead.draft.status === "sent"));
+    } finally {
+      delete process.env.SEND_ENABLED;
+      delete process.env.SMTP_HOST;
+      delete process.env.SMTP_PORT;
+      delete process.env.SMTP_SECURE;
+      delete process.env.SMTP_USER;
+      delete process.env.SMTP_PASS;
+      mail.setMailTransporterFactory(null);
+    }
   });
 });
