@@ -627,6 +627,72 @@ describe("ops store rules", () => {
     }
   });
 
+  it("sends only the approved draft's contact email and leaves the other lead unsent", async () => {
+    const mail = await import("./mail");
+    process.env.SEND_ENABLED = "true";
+    process.env.SMTP_HOST = "mail.privateemail.com";
+    process.env.SMTP_PORT = "465";
+    process.env.SMTP_SECURE = "true";
+    process.env.SMTP_USER = "max@elbertalogistics.net";
+    process.env.SMTP_PASS = "app-password-not-for-repo";
+    const sent: Array<{ to: string; subject: string; text: string }> = [];
+    mail.setMailTransporterFactory(() => ({
+      async sendMail(payload) {
+        sent.push(payload);
+        return { messageId: "mock-targeted-send" };
+      },
+    }));
+    try {
+      const clicked = store.createCompany({
+        name: "SMTP Clicked Lead Co",
+        contact: {
+          first_name: "James",
+          last_name: "Selftest",
+          title: "Owner",
+          email: "james@ciclodata.com",
+        },
+      });
+      const other = store.createCompany({
+        name: "SMTP Other Lead Co",
+        contact: {
+          first_name: "Kim",
+          last_name: "Other",
+          title: "Traffic Manager",
+          email: "kim.other@other-lead.example",
+        },
+      });
+      const clickedDraft = store.createFirstTouchDraft({
+        company_id: clicked.id,
+        contact_id: clicked.contacts[0].id,
+        hook_line: "you ship from the wiregrass and may need dry van truckload",
+      });
+      const otherDraft = store.createFirstTouchDraft({
+        company_id: other.id,
+        contact_id: other.contacts[0].id,
+        hook_line: "you ship packaging from Albany and may need dry van truckload",
+      });
+      const result = await store.approveAndSendDraft(clickedDraft.id);
+      assert.equal(result.status, "sent");
+      assert.equal(sent.length, 1);
+      assert.equal(sent[0].to, "james@ciclodata.com");
+      assert.equal(sent[0].subject, clickedDraft.subject);
+      assert.equal(sent[0].text, clickedDraft.body);
+      assert.doesNotMatch(sent[0].to, /kim\.other@other-lead\.example/);
+      const leftover = store.getDraft(otherDraft.id);
+      assert.equal(leftover.status, "draft");
+      assert.equal(leftover.sent_at, null);
+      assert.equal(leftover.contact_email, "kim.other@other-lead.example");
+    } finally {
+      delete process.env.SEND_ENABLED;
+      delete process.env.SMTP_HOST;
+      delete process.env.SMTP_PORT;
+      delete process.env.SMTP_SECURE;
+      delete process.env.SMTP_USER;
+      delete process.env.SMTP_PASS;
+      mail.setMailTransporterFactory(null);
+    }
+  });
+
   it("does not mark sent when the mocked transporter throws", async () => {
     const mail = await import("./mail");
     process.env.SEND_ENABLED = "true";

@@ -2,8 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { Button, Card, EmailOnFile, ErrorNote, ExampleStamp, Pill } from "@/components/ui";
+import {
+  approveDisabledTitle,
+  clearDraftActionError,
+  formatCopiedDraft,
+  setDraftActionError,
+} from "@/lib/board-ui";
 import { api } from "@/lib/client";
-import { FROM_EMAIL, REPLY_TO_EMAIL } from "@/lib/constants";
 import type { LeadSort, LeadTier, Settings, Workstation, WorkstationFilter } from "@/lib/types";
 
 function draftTone(status: string | undefined): "gold" | "forest" | "ink" | "muted" {
@@ -30,6 +35,7 @@ export default function LeadsPage() {
   const [emailOnly, setEmailOnly] = useState(false);
   const [tier, setTier] = useState<LeadTier | "">("");
   const [error, setError] = useState<string | null>(null);
+  const [actionErrorByDraftId, setActionErrorByDraftId] = useState<Record<number, string>>({});
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [senderName, setSenderName] = useState("");
   const [senderPhone, setSenderPhone] = useState("");
@@ -72,17 +78,31 @@ export default function LeadsPage() {
     }
   }
 
-  async function act(id: number, action: "approve" | "copy" | "mark-sent", draftBody?: string, draftSubject?: string, draftEmail?: string | null) {
+  async function act(
+    id: number,
+    action: "approve" | "copy" | "mark-sent",
+    draftBody?: string,
+    draftSubject?: string,
+    contactEmail?: string | null,
+    draftContactEmail?: string | null,
+  ) {
+    setActionErrorByDraftId((current) => clearDraftActionError(current, id));
     try {
       if (action === "copy") {
-        const text = `From: ${FROM_EMAIL}\nReply-To: ${REPLY_TO_EMAIL}\nTo: ${draftEmail || "(no email on file — do not invent)"}\nSubject: ${draftSubject}\n\n${draftBody}`;
+        const text = formatCopiedDraft({
+          subject: draftSubject ?? "",
+          body: draftBody ?? "",
+          contactEmail,
+          draftContactEmail,
+        });
         await navigator.clipboard.writeText(text);
         setCopiedId(id);
       }
       await api(`/api/drafts/${id}/${action}`, { method: "POST" });
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Action failed");
+      const message = err instanceof Error ? err.message : "Action failed";
+      setActionErrorByDraftId((current) => setDraftActionError(current, id, message));
     }
   }
 
@@ -174,7 +194,15 @@ export default function LeadsPage() {
       <ErrorNote message={error} />
 
       <div className="space-y-4">
-        {board.leads.map(({ company, contact, draft, quality }) => (
+        {board.leads.map(({ company, contact, draft, quality }) => {
+          const approveTitle = draft
+            ? approveDisabledTitle({
+                send: board.send,
+                status: draft.status,
+                email: contact.email,
+              })
+            : undefined;
+          return (
           <Card key={company.id} className="relative">
             {company.is_example ? <ExampleStamp className="absolute right-4 top-4" /> : null}
             <div className="flex flex-wrap items-start justify-between gap-3 pr-24">
@@ -210,6 +238,11 @@ export default function LeadsPage() {
                 <dt className="text-[11px] uppercase tracking-[0.14em] text-ink-muted">Email</dt>
                 <dd>
                   <EmailOnFile email={contact.email} />
+                  {board.send && draft?.status === "draft" && !contact.email ? (
+                    <span className="mt-1 block text-xs text-ink-muted">
+                      Approve stays off until a published email is on file.
+                    </span>
+                  ) : null}
                 </dd>
               </div>
             </dl>
@@ -226,8 +259,8 @@ export default function LeadsPage() {
                 {draft.blocked_reason ? <p className="mt-3 text-sm text-stamp">{draft.blocked_reason}</p> : null}
                 <div className="mt-4 flex flex-wrap gap-2">
                   {draft.status === "draft" ? (
-                    board.send && !contact.email ? (
-                      <Button tone="forest" disabled title="No email on file — cannot send">
+                    approveTitle ? (
+                      <Button tone="forest" disabled title={approveTitle}>
                         Approve
                       </Button>
                     ) : (
@@ -239,7 +272,16 @@ export default function LeadsPage() {
                   {draft.status !== "blocked" ? (
                     <Button
                       tone="ghost"
-                      onClick={() => void act(draft.id, "copy", draft.body, draft.subject, draft.contact_email)}
+                      onClick={() =>
+                        void act(
+                          draft.id,
+                          "copy",
+                          draft.body,
+                          draft.subject,
+                          contact.email,
+                          draft.contact_email,
+                        )
+                      }
                     >
                       {copiedId === draft.id ? "Copied" : "Copy"}
                     </Button>
@@ -248,17 +290,18 @@ export default function LeadsPage() {
                     <Button onClick={() => void act(draft.id, "mark-sent")}>Mark sent</Button>
                   ) : null}
                 </div>
-                {board.send && draft.status === "draft" && !contact.email ? (
-                  <p className="mt-2 text-sm text-stamp">
-                    Approve is disabled — no published email on this lead. Do not invent one.
-                  </p>
+                {actionErrorByDraftId[draft.id] ? (
+                  <div className="mt-3">
+                    <ErrorNote message={actionErrorByDraftId[draft.id]} />
+                  </div>
                 ) : null}
               </>
             ) : (
               <p className="mt-4 text-sm text-ink-muted">No first-touch draft on file.</p>
             )}
           </Card>
-        ))}
+          );
+        })}
         {board.leads.length === 0 ? (
           <p className="text-sm text-ink-muted">
             {filter === "sent"
