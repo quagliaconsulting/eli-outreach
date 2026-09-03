@@ -12,6 +12,7 @@ import {
 } from "./constants";
 import { getDb } from "./db";
 import { buildFirstTouchHook, namedContact } from "./leads";
+import { scoreLead } from "./quality";
 import {
   assertRealEmail,
   normalizeEmail,
@@ -30,10 +31,13 @@ import {
   type CrmRecord,
   type DncEntry,
   type DraftView,
+  type LeadSort,
+  type LeadTier,
   type LeadView,
   type Settings,
   type Workstation,
   type WorkstationFilter,
+  type WorkstationQuery,
 } from "./types";
 
 function db(): Database {
@@ -102,11 +106,16 @@ function hydrateCompany(company: Company): CompanyWithContacts {
     (db()
       .prepare("SELECT * FROM crm_records WHERE company_id = ?")
       .get(company.id) as CrmRecord | undefined) ?? null;
-  return {
+  const hydrated = {
     ...company,
     contacts,
     dnc: isCompanyDnc(company, contacts),
     crm,
+  };
+  const contact = namedContact(hydrated) ?? contacts[0] ?? null;
+  return {
+    ...hydrated,
+    quality: scoreLead(hydrated, contact),
   };
 }
 
@@ -713,7 +722,29 @@ function isHiddenFromWorkstation(company: CompanyWithContacts): boolean {
   return !namedContact(company);
 }
 
-export function getWorkstation(filter: WorkstationFilter = "open"): Workstation {
+function compareLeads(a: LeadView, b: LeadView, sort: LeadSort): number {
+  if (sort === "quality") {
+    const byScore = b.quality.score - a.quality.score;
+    if (byScore !== 0) return byScore;
+    return a.company.name.localeCompare(b.company.name, "en", { sensitivity: "base" });
+  }
+  if (sort === "added") {
+    const byAdded = (b.company.created_at || "").localeCompare(a.company.created_at || "");
+    if (byAdded !== 0) return byAdded;
+    return b.company.id - a.company.id;
+  }
+  return a.company.name.localeCompare(b.company.name, "en", { sensitivity: "base" });
+}
+
+export function getWorkstation(
+  filterOrQuery: WorkstationFilter | WorkstationQuery = "open",
+): Workstation {
+  const query: WorkstationQuery =
+    typeof filterOrQuery === "string" ? { filter: filterOrQuery } : filterOrQuery;
+  const filter = query.filter ?? "open";
+  const sort: LeadSort = query.sort ?? "quality";
+  const tier: LeadTier | null = query.tier ?? null;
+
   ensureFirstTouchDrafts();
   const settings = getSettings();
   const drafts = listDrafts();
@@ -731,26 +762,22 @@ export function getWorkstation(filter: WorkstationFilter = "open"): Workstation 
           item.contact_id === contact.id &&
           item.kind === "first_touch",
       ) ?? null;
-    leads.push({ company, contact, draft });
+    const quality = scoreLead(company, contact);
+    leads.push({ company, contact, draft, quality });
   }
-
-  leads.sort((a, b) => {
-    const rank = (lead: LeadView) => {
-      const status = lead.draft?.status;
-      if (status === "draft") return 0;
-      if (status === "approved") return 1;
-      if (status === "copied") return 2;
-      if (status === "sent") return 3;
-      return 4;
-    };
-    const byStatus = rank(a) - rank(b);
-    if (byStatus !== 0) return byStatus;
-    return a.company.name.localeCompare(b.company.name, "en", { sensitivity: "base" });
-  });
 
   const open = leads.filter((lead) => lead.draft?.status !== "sent");
   const sent = leads.filter((lead) => lead.draft?.status === "sent");
-  const visible = filter === "sent" ? sent : filter === "all" ? leads : open;
+  let visible = filter === "sent" ? sent : filter === "all" ? leads : open;
+
+  if (query.email) {
+    visible = visible.filter((lead) => Boolean(lead.contact.email));
+  }
+  if (tier) {
+    visible = visible.filter((lead) => lead.quality.tier === tier);
+  }
+
+  visible = [...visible].sort((a, b) => compareLeads(a, b, sort));
 
   return {
     settings,

@@ -7,9 +7,11 @@ export function ExampleStamp({ className = "" }: { className?: string }) {
 export function Pill({
   children,
   tone = "ink",
+  title,
 }: {
   children: ReactNode;
   tone?: "ink" | "forest" | "gold" | "stamp" | "muted";
+  title?: string;
 }) {
   const tones = {
     ink: "bg-navy text-paper",
@@ -19,7 +21,10 @@ export function Pill({
     muted: "bg-paper-rule/60 text-ink-muted",
   };
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium tracking-wide ${tones[tone]}`}>
+    <span
+      title={title}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium tracking-wide ${tones[tone]}`}
+    >
       {children}
     </span>
   );

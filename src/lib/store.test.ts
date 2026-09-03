@@ -359,6 +359,10 @@ describe("ops store rules", () => {
     assert.match(lead.draft.body, /Plant ships dry van outbound to Florida DCs/);
     assert.match(lead.draft.body, /https:\/\/elbertalogistics.com\/services\//);
     assert.doesNotMatch(lead.draft.body, /phone first/i);
+    assert.equal(lead.quality.tier, "A");
+    assert.ok(lead.quality.score >= 70);
+    assert.match(lead.quality.reason, /Named work email/);
+    assert.equal(lead.company.quality.tier, "A");
 
     const again = store.getWorkstation("open");
     assert.equal(again.leads.find((item) => item.company.id === named.id)?.draft?.id, lead.draft.id);
@@ -371,6 +375,78 @@ describe("ops store rules", () => {
     const afterDnc = store.getWorkstation("open");
     assert.equal(
       afterDnc.leads.some((item) => item.company.id === dncNamed.id),
+      false,
+    );
+  });
+
+  it("scores a new company on insert and supports quality sort plus email and tier filters", () => {
+    const phoneOnly = store.createCompany({
+      name: "ZZ Quality Phone Only",
+      industry: "Textiles",
+      city: "Fresno",
+      state: "CA",
+      contact: {
+        first_name: "Kim",
+        last_name: "Dale",
+        title: "Clerk",
+        phone: "559-555-0100",
+      },
+    });
+    assert.ok(phoneOnly.quality.score >= 0);
+    assert.ok(phoneOnly.quality.score <= 100);
+    assert.match(phoneOnly.quality.reason, /No email on file/);
+    assert.equal(phoneOnly.quality.tier, "C");
+
+    const strong = store.createCompany({
+      name: "AA Quality Named Email",
+      industry: "Produce / food",
+      city: "Valdosta",
+      state: "GA",
+      website: "https://aa-quality.example",
+      contact: {
+        first_name: "Rita",
+        last_name: "Cole",
+        title: "Director of Logistics",
+        phone: "229-555-0111",
+        email: "rita.cole@aa-quality.example",
+      },
+    });
+    assert.equal(strong.quality.tier, "A");
+    assert.ok(strong.quality.score > phoneOnly.quality.score);
+
+    const byQuality = store.getWorkstation({ filter: "open", sort: "quality" });
+    const qualityIds = byQuality.leads.map((lead) => lead.company.id);
+    assert.ok(qualityIds.includes(strong.id));
+    assert.ok(qualityIds.includes(phoneOnly.id));
+    assert.ok(qualityIds.indexOf(strong.id) < qualityIds.indexOf(phoneOnly.id));
+    assert.ok(
+      byQuality.leads.every((lead, index, list) => {
+        if (index === 0) return true;
+        return list[index - 1].quality.score >= lead.quality.score;
+      }),
+    );
+
+    const byCompany = store.getWorkstation({ filter: "open", sort: "company" });
+    const names = byCompany.leads.map((lead) => lead.company.name);
+    const sorted = [...names].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
+    assert.deepEqual(names, sorted);
+
+    const byAdded = store.getWorkstation({ filter: "open", sort: "added" });
+    assert.equal(byAdded.leads[0]?.company.id, strong.id);
+
+    const emailOnly = store.getWorkstation({ filter: "open", email: true });
+    assert.equal(
+      emailOnly.leads.some((lead) => lead.company.id === phoneOnly.id),
+      false,
+    );
+    assert.ok(emailOnly.leads.some((lead) => lead.company.id === strong.id));
+    assert.ok(emailOnly.leads.every((lead) => Boolean(lead.contact.email)));
+
+    const tierA = store.getWorkstation({ filter: "open", tier: "A" });
+    assert.ok(tierA.leads.every((lead) => lead.quality.tier === "A"));
+    assert.ok(tierA.leads.some((lead) => lead.company.id === strong.id));
+    assert.equal(
+      tierA.leads.some((lead) => lead.company.id === phoneOnly.id),
       false,
     );
   });

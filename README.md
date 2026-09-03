@@ -11,6 +11,9 @@ One main screen:
 - **Qualified leads** — named transportation/logistics people at real plants (switchboard-only “Shipping” rows stay hidden)
 - Each lead shows **company, person, title, phone, and email** (or clearly “no email on file — do not invent”)
 - Each lead already has a **locked first-touch draft** (only the hook line varies)
+- Each lead has a derived **quality score** (0–100) and an **A / B / C** tier, plus a short reason. Reachability (named work email > generic inbox > phone-only) is the biggest factor; named transportation titles, seniority, contact completeness, ELI-lane geography (GA / FL / NC / TX and the Southeast), and freight-fit industries also move the score. New leads are scored automatically on insert and on load — there is no manual step
+- **Sort:** quality (best first, default), newest, or company name
+- **Filter:** has email; by tier A / B / C. Open / Sent still splits unmarked vs marked-sent drafts
 - Actions: **Approve**, **Copy**, **Mark sent**. There is no Send
 - A small strip for sender name and phone
 
@@ -62,6 +65,15 @@ SQLite lives under `/data` when that directory exists (Railway volume). Otherwis
 ## Write path
 
 Real shipper accounts are written with `is_example = 0`. Seed data is example-only and is never written through these endpoints.
+
+`GET /api/leads` — named decision-maker workstation. Query:
+
+- `filter` = `open` (default) | `sent` | `all`
+- `sort` = `quality` (default, best first) | `added` | `company`
+- `email` = `1` to keep only leads with an email on file
+- `tier` = `A` | `B` | `C`
+
+Each lead includes `quality: { score, tier, reason }`. The same object is on company payloads from `GET /api/companies` and `POST /api/companies`, so a new account is scored as soon as it is written.
 
 `POST /api/companies` — create one real account. JSON body:
 

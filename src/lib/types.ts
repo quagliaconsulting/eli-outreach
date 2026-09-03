@@ -87,10 +87,19 @@ export type CrmRecord = {
   updated_at: string;
 };
 
+export type LeadTier = "A" | "B" | "C";
+
+export type LeadQuality = {
+  score: number;
+  tier: LeadTier;
+  reason: string;
+};
+
 export type CompanyWithContacts = Company & {
   contacts: Contact[];
   dnc: boolean;
   crm: CrmRecord | null;
+  quality: LeadQuality;
 };
 
 export type CompanyContactInput = {
@@ -125,11 +134,20 @@ export type DraftView = Draft & {
 };
 
 export type WorkstationFilter = "open" | "sent" | "all";
+export type LeadSort = "quality" | "added" | "company";
 
 export type LeadView = {
   company: CompanyWithContacts;
   contact: Contact;
   draft: DraftView | null;
+  quality: LeadQuality;
+};
+
+export type WorkstationQuery = {
+  filter?: WorkstationFilter;
+  sort?: LeadSort;
+  email?: boolean;
+  tier?: LeadTier | null;
 };
 
 export type Workstation = {

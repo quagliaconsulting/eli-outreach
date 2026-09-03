@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Button, Card, EmailOnFile, ErrorNote, ExampleStamp, Pill } from "@/components/ui";
 import { api } from "@/lib/client";
 import { FROM_EMAIL, REPLY_TO_EMAIL } from "@/lib/constants";
-import type { Settings, Workstation, WorkstationFilter } from "@/lib/types";
+import type { LeadSort, LeadTier, Settings, Workstation, WorkstationFilter } from "@/lib/types";
 
 function draftTone(status: string | undefined): "gold" | "forest" | "ink" | "muted" {
   if (status === "draft") return "gold";
@@ -13,18 +13,34 @@ function draftTone(status: string | undefined): "gold" | "forest" | "ink" | "mut
   return "muted";
 }
 
+function chipClass(active: boolean): string {
+  return `rounded-full px-3 py-1 text-xs ${active ? "bg-navy text-paper" : "bg-white text-ink-muted"}`;
+}
+
+function tierTone(tier: LeadTier): "forest" | "gold" | "muted" {
+  if (tier === "A") return "forest";
+  if (tier === "B") return "gold";
+  return "muted";
+}
+
 export default function LeadsPage() {
   const [board, setBoard] = useState<Workstation | null>(null);
   const [filter, setFilter] = useState<WorkstationFilter>("open");
+  const [sort, setSort] = useState<LeadSort>("quality");
+  const [emailOnly, setEmailOnly] = useState(false);
+  const [tier, setTier] = useState<LeadTier | "">("");
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [senderName, setSenderName] = useState("");
   const [senderPhone, setSenderPhone] = useState("");
   const [saved, setSaved] = useState(false);
 
-  async function load(nextFilter = filter) {
+  async function load() {
     try {
-      const data = await api<Workstation>(`/api/leads?filter=${nextFilter}`);
+      const params = new URLSearchParams({ filter, sort });
+      if (emailOnly) params.set("email", "1");
+      if (tier) params.set("tier", tier);
+      const data = await api<Workstation>(`/api/leads?${params}`);
       setBoard(data);
       setSenderName(data.settings.sender_name);
       setSenderPhone(data.settings.sender_phone);
@@ -35,8 +51,8 @@ export default function LeadsPage() {
   }
 
   useEffect(() => {
-    void load(filter);
-  }, [filter]);
+    void load();
+  }, [filter, sort, emailOnly, tier]);
 
   async function saveSettings() {
     try {
@@ -84,22 +100,45 @@ export default function LeadsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className={`rounded-full px-3 py-1 text-xs ${filter === "open" ? "bg-navy text-paper" : "bg-white text-ink-muted"}`}
-            onClick={() => setFilter("open")}
-          >
+          <button type="button" className={chipClass(filter === "open")} onClick={() => setFilter("open")}>
             Open {board.counts.open}
           </button>
-          <button
-            type="button"
-            className={`rounded-full px-3 py-1 text-xs ${filter === "sent" ? "bg-navy text-paper" : "bg-white text-ink-muted"}`}
-            onClick={() => setFilter("sent")}
-          >
+          <button type="button" className={chipClass(filter === "sent")} onClick={() => setFilter("sent")}>
             Sent {board.counts.sent}
           </button>
         </div>
       </header>
+
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-muted">Sort</span>
+          <button type="button" className={chipClass(sort === "quality")} onClick={() => setSort("quality")}>
+            Quality
+          </button>
+          <button type="button" className={chipClass(sort === "added")} onClick={() => setSort("added")}>
+            Newest
+          </button>
+          <button type="button" className={chipClass(sort === "company")} onClick={() => setSort("company")}>
+            Company
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-muted">Filter</span>
+          <button type="button" className={chipClass(emailOnly)} onClick={() => setEmailOnly((on) => !on)}>
+            Has email
+          </button>
+          {(["A", "B", "C"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={chipClass(tier === value)}
+              onClick={() => setTier((current) => (current === value ? "" : value))}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <Card>
         <div className="flex flex-wrap items-end gap-3">
@@ -133,7 +172,7 @@ export default function LeadsPage() {
       <ErrorNote message={error} />
 
       <div className="space-y-4">
-        {board.leads.map(({ company, contact, draft }) => (
+        {board.leads.map(({ company, contact, draft, quality }) => (
           <Card key={company.id} className="relative">
             {company.is_example ? <ExampleStamp className="absolute right-4 top-4" /> : null}
             <div className="flex flex-wrap items-start justify-between gap-3 pr-24">
@@ -144,12 +183,20 @@ export default function LeadsPage() {
                   {contact.title ? ` · ${contact.title}` : ""}
                   {company.city || company.state ? ` · ${[company.city, company.state].filter(Boolean).join(", ")}` : ""}
                 </p>
+                <p className="mt-1 text-xs text-ink-faint" title={quality.reason}>
+                  {quality.reason}
+                </p>
               </div>
-              {draft ? (
-                <Pill tone={draftTone(draft.status)}>{draft.status}</Pill>
-              ) : (
-                <Pill tone="muted">no draft</Pill>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill tone={tierTone(quality.tier)} title={quality.reason}>
+                  {quality.tier}
+                </Pill>
+                {draft ? (
+                  <Pill tone={draftTone(draft.status)}>{draft.status}</Pill>
+                ) : (
+                  <Pill tone="muted">no draft</Pill>
+                )}
+              </div>
             </div>
 
             <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
@@ -201,7 +248,11 @@ export default function LeadsPage() {
         ))}
         {board.leads.length === 0 ? (
           <p className="text-sm text-ink-muted">
-            {filter === "sent" ? "No marked-sent drafts yet." : "No named decision-maker leads in this list."}
+            {filter === "sent"
+              ? "No marked-sent drafts yet."
+              : emailOnly || tier
+                ? "No named decision-maker leads match these filters."
+                : "No named decision-maker leads in this list."}
           </p>
         ) : null}
       </div>
