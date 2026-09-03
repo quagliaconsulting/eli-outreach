@@ -55,7 +55,7 @@ export const OPS_RULES = [
     id: "no-invent-email",
     title: "Never invent emails",
     detail:
-      "If a contact has no email on file, leave it blank. Phone first.",
+      "If a contact has no email on file, leave it blank. Do not invent an address.",
   },
   {
     id: "crm-after-replied",
@@ -83,11 +83,6 @@ export const OPS_RULES = [
     id: "no-site-visits",
     title: "No site visits in first-touch",
     detail: "Do not offer to visit a facility in a first-touch draft.",
-  },
-  {
-    id: "phone-first",
-    title: "Phone-first",
-    detail: "Today’s queue ranks calls ahead of email copy work.",
   },
   {
     id: "from-reply",

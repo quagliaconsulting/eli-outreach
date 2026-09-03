@@ -1,20 +1,22 @@
 # eli-outreach
 
-ELI Outreach is the shipper business-development ops console for Elberta Logistics International (ELI). It is a phone-first, copy-only workstation: **this application never sends email**.
+ELI Outreach is a simple workstation for Max and Jim: **qualified decision-maker leads** with contact information and a ready first-touch email draft. **This application never sends email.** Copy into your own mail client, then mark sent.
 
-Seeded accounts, when present, are fictional and stamped **EXAMPLE DATA**. Do not treat them as live shippers. `seedIfEmpty` does **not** insert fictional companies once the settings row exists — an empty real database is correct after purge. Operators add live accounts (`is_example = 0`) from Pipeline or the write APIs below.
+Seeded accounts, when present, are fictional and stamped **EXAMPLE DATA**. Do not treat them as live shippers. `seedIfEmpty` does **not** insert fictional companies once the settings row exists — an empty real database is correct after purge. Operators add live accounts (`is_example = 0`) from the write APIs below.
 
 ## What it does
 
-Pages:
+One main screen:
 
-- **Today** — phone-first call queue, drafts to approve, copy-ready mail, Replied accounts
-- **Pipeline** — Working / Next up / Backfill
-- **Campaigns** — drafts inbox with approve / copy / mark sent. There is no Send
-- **DNC** — suppressions that block first-touch
-- **Settings** — sender name/phone plus locked From, Reply-To, timezone, packet URL, and the fleet-counts toggle (default **OFF**)
+- **Qualified leads** — named transportation/logistics people at real plants (switchboard-only “Shipping” rows stay hidden)
+- Each lead shows **company, person, title, phone, and email** (or clearly “no email on file — do not invent”)
+- Each lead already has a **locked first-touch draft** (only the hook line varies)
+- Actions: **Approve**, **Copy**, **Mark sent**. There is no Send
+- A small strip for sender name and phone
 
-Hard rules:
+On load, any named lead without a first-touch draft gets one from the locked template. The hook is taken from notes when those notes are usable; otherwise a short place/industry line is used. DNC still blocks first-touch. Nothing is deleted.
+
+Hard rules (enforced in code, not as a sermon in the header):
 
 - No SMTP, Gmail API, or any outbound mail
 - Never invent emails. If none is on file, the UI says so
@@ -25,6 +27,7 @@ Hard rules:
 - From / Reply-To is always `max@elbertalogistics.net`
 - Packet URL is always `https://elbertalogistics.com/services/`
 - Timezone is `America/New_York`
+- Fleet counts default **OFF**
 
 Locked first-touch:
 
@@ -69,7 +72,7 @@ Real shipper accounts are written with `is_example = 0`. Seed data is example-on
 - `next_action_at`
 - `contact`: `{ first_name, last_name, title, phone, email }`
 
-Email may be `null`. Incomplete or invented-looking emails are rejected (`assertRealEmail`). A switchboard contact (for example first name `Shipping` with no last name) is allowed when there is no named person.
+Email may be `null`. Incomplete or invented-looking emails are rejected (`assertRealEmail`). A switchboard contact (for example first name `Shipping` with no last name) is allowed when there is no named person. Those rows stay off the main lead list.
 
 `POST /api/companies/bulk` — `{ "companies": [ ... ] }` same object shape, max 50, all-or-nothing transaction. Use this to load a review batch.
 

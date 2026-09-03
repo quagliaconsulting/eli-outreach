@@ -29,7 +29,7 @@ export function EmailOnFile({ email }: { email: string | null | undefined }) {
   if (!email) {
     return (
       <span className="text-stamp">
-        No email on file — do not invent. Phone first.
+        No email on file — do not invent.
       </span>
     );
   }

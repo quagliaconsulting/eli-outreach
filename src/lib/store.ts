@@ -11,9 +11,9 @@ import {
   type CompanyStage,
 } from "./constants";
 import { getDb } from "./db";
+import { buildFirstTouchHook, namedContact } from "./leads";
 import {
   assertRealEmail,
-  displayEmail,
   normalizeEmail,
   normalizePhone,
   validateFirstTouchContent,
@@ -29,9 +29,11 @@ import {
   type Contact,
   type CrmRecord,
   type DncEntry,
-  type Draft,
   type DraftView,
+  type LeadView,
   type Settings,
+  type Workstation,
+  type WorkstationFilter,
 } from "./types";
 
 function db(): Database {
@@ -655,42 +657,107 @@ function logActivity(
   return db().prepare("SELECT * FROM activities WHERE id = ?").get(result.lastInsertRowid) as Activity;
 }
 
-export function getTodayBoard() {
-  const companies = listCompanies();
-  const drafts = listDrafts();
-  const settings = getSettings();
+function hasFirstTouchDraft(companyId: number, contactId: number): boolean {
+  const row = db()
+    .prepare(
+      `SELECT id FROM drafts
+       WHERE company_id = ? AND contact_id = ? AND kind = 'first_touch'
+       LIMIT 1`,
+    )
+    .get(companyId, contactId) as { id: number } | undefined;
+  return Boolean(row);
+}
 
-  const working = companies.filter((c) => c.stage === "working");
-  const calls = working
-    .filter((c) => !c.dnc)
-    .map((company) => {
-      const contact = company.contacts.find((x) => x.is_primary) ?? company.contacts[0];
-      const email = displayEmail(contact?.email);
-      return {
-        company,
-        contact,
-        why: !email
-          ? "No email on file — do not invent. Phone first."
-          : company.next_action_type === "call"
-            ? "Phone-first working account."
-            : "Working account — call before you copy mail.",
-        hasEmail: Boolean(email),
-      };
+export function ensureFirstTouchDrafts(): number {
+  const companies = listCompanies();
+  let created = 0;
+
+  for (const company of companies) {
+    const contact = namedContact(company);
+    if (!contact) continue;
+    if (hasFirstTouchDraft(company.id, contact.id)) continue;
+
+    const hook = buildFirstTouchHook({
+      notes: company.notes,
+      industry: company.industry,
+      city: company.city,
+      state: company.state,
     });
+
+    try {
+      createFirstTouchDraft({
+        company_id: company.id,
+        contact_id: contact.id,
+        hook_line: hook,
+      });
+      created += 1;
+    } catch {
+      try {
+        createFirstTouchDraft({
+          company_id: company.id,
+          contact_id: contact.id,
+          hook_line: "you may need dry van truckload coverage from an asset-based carrier",
+        });
+        created += 1;
+      } catch {
+        // Leave the lead without a draft rather than invent an email or drop existing rows.
+      }
+    }
+  }
+
+  return created;
+}
+
+function isHiddenFromWorkstation(company: CompanyWithContacts): boolean {
+  if (company.stage === "dnc" || company.stage === "closed" || company.dnc) return true;
+  return !namedContact(company);
+}
+
+export function getWorkstation(filter: WorkstationFilter = "open"): Workstation {
+  ensureFirstTouchDrafts();
+  const settings = getSettings();
+  const drafts = listDrafts();
+  const companies = listCompanies();
+
+  const leads: LeadView[] = [];
+  for (const company of companies) {
+    if (isHiddenFromWorkstation(company)) continue;
+    const contact = namedContact(company);
+    if (!contact) continue;
+    const draft =
+      drafts.find(
+        (item) =>
+          item.company_id === company.id &&
+          item.contact_id === contact.id &&
+          item.kind === "first_touch",
+      ) ?? null;
+    leads.push({ company, contact, draft });
+  }
+
+  leads.sort((a, b) => {
+    const rank = (lead: LeadView) => {
+      const status = lead.draft?.status;
+      if (status === "draft") return 0;
+      if (status === "approved") return 1;
+      if (status === "copied") return 2;
+      if (status === "sent") return 3;
+      return 4;
+    };
+    const byStatus = rank(a) - rank(b);
+    if (byStatus !== 0) return byStatus;
+    return a.company.name.localeCompare(b.company.name, "en", { sensitivity: "base" });
+  });
+
+  const open = leads.filter((lead) => lead.draft?.status !== "sent");
+  const sent = leads.filter((lead) => lead.draft?.status === "sent");
+  const visible = filter === "sent" ? sent : filter === "all" ? leads : open;
 
   return {
     settings,
-    calls,
-    pendingDrafts: drafts.filter((d) => d.status === "draft"),
-    readyToCopy: drafts.filter((d) => d.status === "approved" || d.status === "copied"),
-    replied: companies.filter((c) => c.stage === "replied"),
-    dnc: companies.filter((c) => c.dnc),
+    leads: visible,
     counts: {
-      working: working.length,
-      next_up: companies.filter((c) => c.stage === "next_up").length,
-      backfill: companies.filter((c) => c.stage === "backfill").length,
-      drafts: drafts.filter((d) => d.status === "draft" || d.status === "approved").length,
-      dnc: companies.filter((c) => c.dnc).length,
+      open: open.length,
+      sent: sent.length,
     },
   };
 }
