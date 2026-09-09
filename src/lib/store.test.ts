@@ -34,6 +34,8 @@ describe("ops store rules", () => {
   it("loads example companies as is_example=1 and keeps fleet counts off", () => {
     const settings = store.getSettings();
     assert.equal(settings.fleet_counts_enabled, 0);
+    assert.equal(settings.sender_name, "Maxwell Bacon");
+    assert.equal(settings.sender_phone, "248-318-6170");
     assert.equal(settings.sender_email, "max@elbertalogistics.net");
     assert.equal(settings.reply_to_email, "max@elbertalogistics.net");
     assert.equal(settings.timezone, "America/New_York");
@@ -355,10 +357,13 @@ describe("ops store rules", () => {
     assert.equal(lead.contact.title, "Transportation Manager");
     assert.ok(lead.draft);
     assert.equal(lead.draft.status, "draft");
-    assert.equal(lead.draft.subject, "Named Decision Co truckload capacity — 15 minutes?");
-    assert.match(lead.draft.body, /Plant ships dry van outbound to Florida DCs/);
-    assert.match(lead.draft.body, /https:\/\/elbertalogistics.com\/services\//);
+    assert.equal(lead.draft.subject, "Temperature-controlled freight for Named Decision Co");
+    assert.match(lead.draft.body, /Perdue, Tillamook, Reser's Fine Foods and Dole Fresh/);
+    assert.match(lead.draft.body, /Maxwell Bacon\nDirector of Customer Sales, Elberta Logistics International Solutions LLC\n850-692-2511 x 148\n248-318-6170$/);
+    assert.doesNotMatch(lead.draft.body, /Plant ships dry van outbound to Florida DCs/);
+    assert.doesNotMatch(lead.draft.body, /https:\/\/elbertalogistics.com\/services\//);
     assert.doesNotMatch(lead.draft.body, /phone first/i);
+    assert.doesNotMatch(lead.draft.body, /850-702-9224|Business Development|^Best,/m);
     assert.equal(lead.quality.tier, "A");
     assert.ok(lead.quality.score >= 70);
     assert.match(lead.quality.reason, /Named work email/);
@@ -608,7 +613,7 @@ describe("ops store rules", () => {
       assert.ok(result.approved_at);
       assert.equal(sent.length, 1);
       assert.equal(sent[0].to, "rita.send@smtp-success.example");
-      assert.equal(sent[0].from, "Max <max@elbertalogistics.net>");
+      assert.equal(sent[0].from, "Maxwell Bacon <max@elbertalogistics.net>");
       assert.equal(sent[0].replyTo, "max@elbertalogistics.net");
       assert.equal(sent[0].subject, draft.subject);
       assert.equal(sent[0].text, draft.body);
@@ -728,5 +733,81 @@ describe("ops store rules", () => {
       delete process.env.SMTP_PASS;
       mail.setMailTransporterFactory(null);
     }
+  });
+
+  it("regenerates unsent first-touch drafts to Max's locked copy and leaves sent drafts alone", () => {
+    const food = store.createCompany({
+      name: "Live Food Shipper",
+      industry: "Food processing",
+      notes: "Frozen outbound to grocery DCs.",
+      contact: {
+        first_name: "Elena",
+        last_name: "Vargas",
+        title: "Transportation Manager",
+        email: "elena.vargas@live-food.example",
+      },
+    });
+    const mill = store.createCompany({
+      name: "Live Mill Shipper",
+      industry: "Furniture manufacturing",
+      contact: {
+        first_name: "Claire",
+        last_name: "Benedetti",
+        title: "Logistics Lead",
+        email: "claire.b@live-mill.example",
+      },
+    });
+    const sentCo = store.createCompany({
+      name: "Already Sent Shipper",
+      industry: "Food processing",
+      contact: {
+        first_name: "Pat",
+        last_name: "Lee",
+        title: "Traffic Manager",
+        email: "pat.lee@already-sent.example",
+      },
+    });
+
+    store.getWorkstation("open");
+    const foodDraft = store.listDrafts().find((d) => d.company_id === food.id);
+    const millDraft = store.listDrafts().find((d) => d.company_id === mill.id);
+    const sentDraft = store.listDrafts().find((d) => d.company_id === sentCo.id);
+    assert.ok(foodDraft && millDraft && sentDraft);
+
+    const database = dbMod.getDb();
+    database
+      .prepare("UPDATE drafts SET subject = ?, body = ?, status = 'approved' WHERE id = ?")
+      .run("OLD SUBJECT FOOD", "Old food body without Max signature.", foodDraft.id);
+    database
+      .prepare("UPDATE drafts SET subject = ?, body = ?, status = 'copied' WHERE id = ?")
+      .run("OLD SUBJECT MILL", "Old mill body.", millDraft.id);
+    database
+      .prepare("UPDATE drafts SET subject = ?, body = ?, status = 'sent', sent_at = ? WHERE id = ?")
+      .run("OLD SENT SUBJECT", "Old sent body.", "2026-09-01T00:00:00.000Z", sentDraft.id);
+
+    const rewritten = store.refreshUnsentFirstTouchDrafts();
+    assert.ok(rewritten >= 2);
+
+    const nextFood = store.getDraft(foodDraft.id);
+    const nextMill = store.getDraft(millDraft.id);
+    const nextSent = store.getDraft(sentDraft.id);
+    assert.equal(nextFood.status, "approved");
+    assert.equal(nextFood.subject, "Temperature-controlled freight for Live Food Shipper");
+    assert.match(nextFood.body, /248-318-6170$/);
+    assert.equal(nextMill.status, "copied");
+    assert.equal(nextMill.subject, "Manufacturing freight support for Live Mill Shipper");
+    assert.equal(nextSent.status, "sent");
+    assert.equal(nextSent.subject, "OLD SENT SUBJECT");
+    assert.equal(nextSent.body, "Old sent body.");
+  });
+
+  it("patches legacy Max / 850-702-9224 settings to Maxwell Bacon and the cell", () => {
+    const database = dbMod.getDb();
+    database
+      .prepare("UPDATE settings SET sender_name = ?, sender_phone = ? WHERE id = 1")
+      .run("Max", "850-702-9224");
+    const settings = store.getSettings();
+    assert.equal(settings.sender_name, "Maxwell Bacon");
+    assert.equal(settings.sender_phone, "248-318-6170");
   });
 });

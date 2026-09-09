@@ -51,10 +51,7 @@ function hookIsLegal(hook: string): boolean {
   try {
     const rendered = fillLockedFirstTouch({
       company: "Hook Check",
-      firstName: "Test",
       hookLine: hook,
-      senderName: "Max",
-      senderPhone: "850-702-9224",
     });
     validateFirstTouchContent({
       hookLine: hook,

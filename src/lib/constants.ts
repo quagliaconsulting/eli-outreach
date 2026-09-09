@@ -2,8 +2,18 @@ export const TIMEZONE = "America/New_York";
 export const FROM_EMAIL = "max@elbertalogistics.net";
 export const REPLY_TO_EMAIL = "max@elbertalogistics.net";
 export const PACKET_URL = "https://elbertalogistics.com/services/";
-export const DEFAULT_SENDER_NAME = "Max";
-export const DEFAULT_SENDER_PHONE = "850-702-9224";
+export const DEFAULT_SENDER_NAME = "Maxwell Bacon";
+export const DEFAULT_SENDER_PHONE = "248-318-6170";
+export const LOCKED_SENDER_OFFICE = "850-692-2511 x 148";
+export const LOCKED_SENDER_CELL = "248-318-6170";
+
+export const FIRST_TOUCH_VERTICALS = [
+  "food_beverage",
+  "raw_materials",
+  "chemical",
+  "manufacturing",
+] as const;
+export type FirstTouchVertical = (typeof FIRST_TOUCH_VERTICALS)[number];
 
 export const PIPELINE_COLUMNS = ["working", "next_up", "backfill"] as const;
 export type PipelineColumn = (typeof PIPELINE_COLUMNS)[number];
@@ -30,19 +40,56 @@ export const DRAFT_STATUSES = [
 ] as const;
 export type DraftStatus = (typeof DRAFT_STATUSES)[number];
 
-export const LOCKED_FIRST_TOUCH_SUBJECT =
-  "{{Company}} truckload capacity — 15 minutes?";
+export const LOCKED_FIRST_TOUCH_SIGNATURE = `Thank you,
 
-export const LOCKED_FIRST_TOUCH_BODY = `Hi {{FirstName}},
-I am with Elberta Logistics International (ELI). We are an asset-based carrier and a freight brokerage — company trucks plus partner capacity — covering the 48 states, Canada, and Mexico.
-I am reaching out because {{hook_line}}.
-We also handle warehousing, drop trailer / trailer rental, drayage, and ocean when that is useful. Services overview: ${PACKET_URL}
-Would you have 15 minutes this week for a short intro on how you move freight today and whether ELI is even relevant? Happy to work around your calendar.
-Best,
-{{SenderName}}
-Business Development
-Elberta Logistics International
-{{SenderPhone}}`;
+Maxwell Bacon
+Director of Customer Sales, Elberta Logistics International Solutions LLC
+${LOCKED_SENDER_OFFICE}
+${LOCKED_SENDER_CELL}`;
+
+export const LOCKED_FIRST_TOUCH_TEMPLATES: Record<
+  FirstTouchVertical,
+  { subject: string; body: string }
+> = {
+  food_beverage: {
+    subject: "Temperature-controlled freight for {{Company}}",
+    body: `I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with food and beverage shippers such as Perdue, Tillamook, Reser's Fine Foods and Dole Fresh, moving everything from frozen ice cream at -20°F to fresh produce at 36°F.
+
+We understand the cold chain, the delivery windows and the rejection risk that come with your products, and we build our capacity around them.
+
+Would you be free for a quick introduction to see if Elberta's capabilities align with your current supply chain strategy?`,
+  },
+  raw_materials: {
+    subject: "Coil and tubing freight for {{Company}}",
+    body: `I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with steel and aluminum producers such as Gerdau, Constellium and Reliance, transporting aluminum and steel coils and tubing.
+
+We know the securement, weight and equipment requirements this freight demands, and we have the carrier network to handle it reliably.
+
+Would you be free for a quick introduction to see if Elberta's capabilities align with your current supply chain strategy?`,
+  },
+  chemical: {
+    subject: "Hazmat and solvent freight for {{Company}}",
+    body: `I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with chemical and coatings companies such as Sherwin-Williams, AkzoNobel and Trinseo, transporting hazardous materials, solvents and paint-related products.
+
+We understand the compliance, documentation and carrier vetting that hazmat freight requires, and we manage it as part of every shipment.
+
+Would you be free for a quick introduction to see if Elberta's capabilities align with your current supply chain strategy?`,
+  },
+  manufacturing: {
+    subject: "Manufacturing freight support for {{Company}}",
+    body: `I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We support manufacturers on both the automotive side, including Adient, Flex-N-Gate and OpMobility, and the building products side, including Woodgrain, Stella-Jones and Weyerhaeuser.
+
+We know how much your operations depend on freight arriving on time and intact, and we plan our capacity around your production schedules.
+
+Would you be free for a quick introduction to see if Elberta's capabilities align with your current supply chain strategy?`,
+  },
+};
+
+export const LOCKED_FIRST_TOUCH_SUBJECT =
+  LOCKED_FIRST_TOUCH_TEMPLATES.manufacturing.subject;
+
+export const LOCKED_FIRST_TOUCH_BODY =
+  LOCKED_FIRST_TOUCH_TEMPLATES.manufacturing.body;
 
 export const OPS_RULES = [
   {
@@ -77,7 +124,7 @@ export const OPS_RULES = [
   {
     id: "no-ltl-lead",
     title: "No LTL lead",
-    detail: "First-touch leads with truckload capacity, never LTL.",
+    detail: "First-touch leads with truckload capacity, never LTL. Use Max's locked vertical copy.",
   },
   {
     id: "no-site-visits",

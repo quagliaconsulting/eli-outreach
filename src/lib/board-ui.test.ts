@@ -22,8 +22,8 @@ describe("lead card approve / copy targeting", () => {
 
   it("Copy uses the clicked lead subject, body, and published email", () => {
     const text = formatCopiedDraft({
-      subject: "Ciclo Data truckload capacity — 15 minutes?",
-      body: "Hi James,\nLocked draft for this lead only.",
+      subject: "Manufacturing freight support for Ciclo Data",
+      body: "I'm reaching out from Elberta Logistics.\nLocked draft for this lead only.",
       contactEmail: "james@ciclodata.com",
       draftContactEmail: "should-not-win@example.com",
     });
@@ -31,12 +31,12 @@ describe("lead card approve / copy targeting", () => {
     assert.match(text, /Reply-To: max@elbertalogistics\.net/);
     assert.match(text, /To: james@ciclodata.com/);
     assert.doesNotMatch(text, /should-not-win@example.com/);
-    assert.match(text, /Subject: Ciclo Data truckload capacity — 15 minutes\?/);
-    assert.match(text, /Hi James,\nLocked draft for this lead only\.$/);
+    assert.match(text, /Subject: Manufacturing freight support for Ciclo Data/);
+    assert.match(text, /I'm reaching out from Elberta Logistics.\nLocked draft for this lead only\.$/);
 
     const phoneOnly = formatCopiedDraft({
-      subject: "Phone Only Co truckload capacity — 15 minutes?",
-      body: "Hi Kim,\nPhone-only draft.",
+      subject: "Manufacturing freight support for Phone Only Co",
+      body: "I'm reaching out from Elberta Logistics.\nPhone-only draft.",
       contactEmail: null,
       draftContactEmail: null,
     });

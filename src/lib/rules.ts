@@ -1,4 +1,3 @@
-import { PACKET_URL } from "./constants";
 import { RuleError } from "./types";
 
 const SITE_VISIT =
@@ -69,13 +68,6 @@ export function validateFirstTouchContent(input: {
     throw new RuleError(
       "Fleet counts are OFF. Remove truck/trailer headcount from first-touch.",
       "fleet_counts_off",
-    );
-  }
-
-  if (!input.body.includes(PACKET_URL)) {
-    throw new RuleError(
-      `First-touch must include the packet URL ${PACKET_URL}`,
-      "missing_packet",
     );
   }
 }

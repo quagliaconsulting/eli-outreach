@@ -148,13 +148,14 @@ describe("first-touch SMTP send", () => {
 
   it("uses the sender name setting in the From display name", () => {
     assert.equal(formatFromHeader("Jim"), "Jim <max@elbertalogistics.net>");
-    assert.equal(formatFromHeader("  "), "Max <max@elbertalogistics.net>");
+    assert.equal(formatFromHeader("  "), "Maxwell Bacon <max@elbertalogistics.net>");
+    assert.equal(formatFromHeader("Maxwell Bacon"), "Maxwell Bacon <max@elbertalogistics.net>");
   });
 
   it("escapes HTML in the optional simple HTML body", () => {
     assert.equal(
       draftToHtml("Hi <Pat> & team"),
-      '<div style="font-family:Georgia,Times,serif;font-size:14px;line-height:1.5;white-space:pre-wrap;">Hi &lt;Pat&gt; &amp; team</div>',
+      '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.45;color:#222222;white-space:pre-wrap;">Hi &lt;Pat&gt; &amp; team</div>',
     );
   });
 });

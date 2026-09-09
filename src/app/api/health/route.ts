@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { resolveDataDir } from "@/lib/db";
 import { isSendEnabled } from "@/lib/smtp";
-import { getSettings } from "@/lib/store";
+import { getSettings, refreshUnsentFirstTouchDrafts } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
 export function GET() {
+  refreshUnsentFirstTouchDrafts();
   const settings = getSettings();
   return NextResponse.json({
     ok: true,

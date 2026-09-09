@@ -58,7 +58,7 @@ export function draftToHtml(text: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-  return `<div style="font-family:Georgia,Times,serif;font-size:14px;line-height:1.5;white-space:pre-wrap;">${escaped}</div>`;
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.45;color:#222222;white-space:pre-wrap;">${escaped}</div>`;
 }
 
 function assertLockedIdentity(mail: OutboundMail): void {

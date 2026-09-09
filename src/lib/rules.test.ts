@@ -11,10 +11,8 @@ import { RuleError } from "./types";
 
 const base = fillLockedFirstTouch({
   company: "Harborline Imports",
-  firstName: "Priya",
+  industry: "Import distribution",
   hookLine: "you pull containers through Jacksonville and then need inland truckload",
-  senderName: "Max",
-  senderPhone: "850-702-9224",
 });
 
 describe("first-touch rules", () => {

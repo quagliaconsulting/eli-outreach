@@ -335,8 +335,18 @@ function ensureSettings(db: Database.Database): boolean {
   return true;
 }
 
+function patchLegacySenderSettings(db: Database.Database): void {
+  db.prepare(
+    `UPDATE settings
+     SET sender_name = CASE WHEN sender_name IN ('Max') THEN ? ELSE sender_name END,
+         sender_phone = CASE WHEN sender_phone IN ('850-702-9224') THEN ? ELSE sender_phone END
+     WHERE id = 1`,
+  ).run(DEFAULT_SENDER_NAME, DEFAULT_SENDER_PHONE);
+}
+
 export function seedIfEmpty(db: Database.Database): void {
   ensureSettings(db);
+  patchLegacySenderSettings(db);
 }
 
 export function seedExampleCompanies(db: Database.Database): void {
@@ -434,10 +444,9 @@ export function seedExampleCompanies(db: Database.Database): void {
       if (company.draft && primaryId) {
         const rendered = fillLockedFirstTouch({
           company: company.name,
-          firstName: company.contacts[0].first_name,
-          hookLine: company.draft.hook,
-          senderName: DEFAULT_SENDER_NAME,
-          senderPhone: DEFAULT_SENDER_PHONE,
+          industry: company.industry,
+          notes: company.notes,
+          name: company.name,
         });
         insertDraft.run(
           companyId,
