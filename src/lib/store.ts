@@ -30,9 +30,13 @@ import {
   RuleError,
   type Activity,
   type Company,
+  type BulkSkip,
+  type CompanyDeleteResult,
   type CompanyWriteInput,
   type CompanyWithContacts,
   type Contact,
+  type ContactEmailUpdate,
+  type ContactWriteInput,
   type CrmRecord,
   type DncEntry,
   type DraftView,
@@ -335,6 +339,157 @@ export function updateCompanyStage(id: number, stage: CompanyStage): CompanyWith
     logActivity(id, null, "replied", "Marked Replied. CRM is now allowed.");
   }
   return getCompany(id);
+}
+
+export function getContact(id: number): Contact {
+  const contact = db().prepare("SELECT * FROM contacts WHERE id = ?").get(id) as Contact | undefined;
+  if (!contact) throw new RuleError("Contact not found.", "not_found");
+  return contact;
+}
+
+export function updateContact(id: number, input: ContactWriteInput): Contact {
+  const current = getContact(id);
+
+  const first_name = input.first_name !== undefined ? input.first_name.trim() : current.first_name;
+  if (!first_name) throw new RuleError("First name is required.", "validation");
+
+  const last_name = input.last_name !== undefined ? input.last_name.trim() : current.last_name;
+  const title = input.title !== undefined ? input.title.trim() : current.title;
+  const phone = input.phone !== undefined ? input.phone?.trim() || null : current.phone;
+  const email = input.email !== undefined ? assertRealEmail(input.email) : current.email;
+
+  db()
+    .prepare(
+      `UPDATE contacts SET first_name = ?, last_name = ?, title = ?, phone = ?, email = ?
+       WHERE id = ?`,
+    )
+    .run(first_name, last_name, title, phone, email, id);
+  db()
+    .prepare("UPDATE companies SET updated_at = ? WHERE id = ?")
+    .run(nowIso(), current.company_id);
+
+  const notes =
+    input.email !== undefined
+      ? email
+        ? "Published email stored. Do not invent unpublished addresses."
+        : "Email cleared. Do not invent one."
+      : "Contact updated.";
+  logActivity(current.company_id, id, "contact", notes);
+  return getContact(id);
+}
+
+const BULK_WRITE_LIMIT = 100;
+
+export function updateContactsBulkEmail(updates: ContactEmailUpdate[]): {
+  updated: Contact[];
+  skipped: Array<BulkSkip & { contact_id: number }>;
+} {
+  if (!Array.isArray(updates) || updates.length === 0) {
+    throw new RuleError("updates array is required.", "validation");
+  }
+  if (updates.length > BULK_WRITE_LIMIT) {
+    throw new RuleError("Bulk email update is limited to 100 contacts.", "validation");
+  }
+
+  const txn = db().transaction((items: ContactEmailUpdate[]) => {
+    const updated: Contact[] = [];
+    const skipped: Array<BulkSkip & { contact_id: number }> = [];
+    for (const item of items) {
+      const contactId = Number(item?.contact_id);
+      if (!Number.isInteger(contactId) || contactId <= 0) {
+        skipped.push({
+          id: Number.isFinite(contactId) ? contactId : 0,
+          contact_id: contactId,
+          reason: "contact_id is required.",
+          code: "validation",
+        });
+        continue;
+      }
+      try {
+        updated.push(updateContact(contactId, { email: item.email }));
+      } catch (error) {
+        if (
+          error instanceof RuleError &&
+          (error.code === "not_found" || error.code === "invalid_email" || error.code === "validation")
+        ) {
+          skipped.push({
+            id: contactId,
+            contact_id: contactId,
+            reason: error.message,
+            code: error.code,
+          });
+          continue;
+        }
+        throw error;
+      }
+    }
+    return { updated, skipped };
+  });
+  return txn(updates);
+}
+
+function cascadeDeleteCompany(id: number): void {
+  db().prepare("DELETE FROM drafts WHERE company_id = ?").run(id);
+  db().prepare("DELETE FROM activities WHERE company_id = ?").run(id);
+  db().prepare("DELETE FROM crm_records WHERE company_id = ?").run(id);
+  db()
+    .prepare(
+      `DELETE FROM dnc WHERE company_id = ? OR contact_id IN (
+         SELECT id FROM contacts WHERE company_id = ?
+       )`,
+    )
+    .run(id, id);
+  db().prepare("DELETE FROM contacts WHERE company_id = ?").run(id);
+  db().prepare("DELETE FROM companies WHERE id = ?").run(id);
+}
+
+export function deleteCompany(id: number): CompanyDeleteResult {
+  const row = db().prepare("SELECT id FROM companies WHERE id = ?").get(id) as { id: number } | undefined;
+  if (!row) throw new RuleError("Company not found.", "not_found");
+  const txn = db().transaction(() => {
+    cascadeDeleteCompany(id);
+  });
+  txn();
+  return { deleted: true, id };
+}
+
+export function deleteCompaniesBulk(ids: number[]): {
+  deleted: CompanyDeleteResult[];
+  skipped: BulkSkip[];
+} {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw new RuleError("ids array is required.", "validation");
+  }
+  if (ids.length > BULK_WRITE_LIMIT) {
+    throw new RuleError("Bulk delete is limited to 100 companies.", "validation");
+  }
+
+  const txn = db().transaction((companyIds: number[]) => {
+    const deleted: CompanyDeleteResult[] = [];
+    const skipped: BulkSkip[] = [];
+    for (const raw of companyIds) {
+      const id = Number(raw);
+      if (!Number.isInteger(id) || id <= 0) {
+        skipped.push({
+          id: Number.isFinite(id) ? id : 0,
+          reason: "Invalid company id.",
+          code: "validation",
+        });
+        continue;
+      }
+      try {
+        deleted.push(deleteCompany(id));
+      } catch (error) {
+        if (error instanceof RuleError && error.code === "not_found") {
+          skipped.push({ id, reason: error.message, code: error.code });
+          continue;
+        }
+        throw error;
+      }
+    }
+    return { deleted, skipped };
+  });
+  return txn(ids);
 }
 
 export function addContact(

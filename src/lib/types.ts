@@ -110,6 +110,30 @@ export type CompanyContactInput = {
   email?: string | null;
 };
 
+export type ContactWriteInput = {
+  email?: string | null;
+  phone?: string | null;
+  title?: string;
+  first_name?: string;
+  last_name?: string;
+};
+
+export type ContactEmailUpdate = {
+  contact_id: number;
+  email: string | null;
+};
+
+export type BulkSkip = {
+  id: number;
+  reason: string;
+  code: string;
+};
+
+export type CompanyDeleteResult = {
+  deleted: true;
+  id: number;
+};
+
 export type CompanyWriteInput = {
   name: string;
   industry?: string;

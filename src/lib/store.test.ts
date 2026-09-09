@@ -810,4 +810,191 @@ describe("ops store rules", () => {
     assert.equal(settings.sender_name, "Maxwell Bacon");
     assert.equal(settings.sender_phone, "248-318-6170");
   });
+
+  it("updates a published email, rescores quality, and leaves an unsent first-touch sendable", () => {
+    const company = store.createCompany({
+      name: "Harvest Email Later Co",
+      industry: "Food processing",
+      city: "Valdosta",
+      state: "GA",
+      contact: {
+        first_name: "Pat",
+        last_name: "Lee",
+        title: "Traffic Manager",
+        phone: "229-555-0144",
+      },
+    });
+    assert.equal(company.contacts[0].email, null);
+    assert.match(company.quality.reason, /No email on file/);
+    assert.notEqual(company.quality.tier, "A");
+
+    const draft = store.createFirstTouchDraft({
+      company_id: company.id,
+      contact_id: company.contacts[0].id,
+      hook_line: "you ship food from Valdosta and may need dry van truckload",
+    });
+    assert.equal(draft.status, "draft");
+    assert.equal(draft.contact_email, null);
+
+    const unchanged = store.updateContact(company.contacts[0].id, { title: "Director of Logistics" });
+    assert.equal(unchanged.email, null);
+    assert.equal(unchanged.title, "Director of Logistics");
+
+    assert.throws(
+      () => store.updateContact(company.contacts[0].id, { email: "pat@" }),
+      (error: unknown) => error instanceof RuleError && error.code === "invalid_email",
+    );
+    assert.equal(store.getContact(company.contacts[0].id).email, null);
+
+    const personal = store.updateContact(company.contacts[0].id, {
+      email: "pat.lee@harvest-later.example",
+    });
+    assert.equal(personal.email, "pat.lee@harvest-later.example");
+    const rescored = store.getCompany(company.id);
+    assert.equal(rescored.quality.tier, "A");
+    assert.match(rescored.quality.reason, /Named work email/);
+    assert.ok(rescored.quality.score > company.quality.score);
+
+    const refreshed = store.getDraft(draft.id);
+    assert.equal(refreshed.status, "draft");
+    assert.equal(refreshed.contact_email, "pat.lee@harvest-later.example");
+    const approved = store.approveDraft(draft.id);
+    const sent = store.markDraftSent(approved.id);
+    assert.equal(sent.status, "sent");
+    assert.equal(sent.contact_email, "pat.lee@harvest-later.example");
+  });
+
+  it("allows published generic inboxes and rejects unknown contact ids", () => {
+    const company = store.createCompany({
+      name: "Published Desk Inbox Co",
+      contact: { first_name: "Shipping", last_name: "" },
+    });
+    const generics = [
+      "shipping@published-desk.example",
+      "logistics@published-desk.example",
+      "traffic@published-desk.example",
+      "dispatch@published-desk.example",
+      "sales@published-desk.example",
+    ];
+    for (const email of generics) {
+      const updated = store.updateContact(company.contacts[0].id, { email });
+      assert.equal(updated.email, email);
+    }
+    assert.throws(
+      () => store.updateContact(9_999_999, { email: "shipping@published-desk.example" }),
+      (error: unknown) => error instanceof RuleError && error.code === "not_found",
+    );
+  });
+
+  it("bulk-updates published emails in one transaction and skips invalid rows", () => {
+    const first = store.createCompany({
+      name: "Bulk Email One Co",
+      contact: { first_name: "Kim", last_name: "Dale", title: "Traffic Manager" },
+    });
+    const second = store.createCompany({
+      name: "Bulk Email Two Co",
+      contact: { first_name: "Shipping", last_name: "" },
+    });
+    const result = store.updateContactsBulkEmail([
+      { contact_id: first.contacts[0].id, email: "kim.dale@bulk-email.example" },
+      { contact_id: second.contacts[0].id, email: "shipping@bulk-email.example" },
+      { contact_id: first.contacts[0].id + 9_000_000, email: "ghost@bulk-email.example" },
+      { contact_id: second.contacts[0].id, email: "bad@" },
+    ]);
+    assert.equal(result.updated.length, 2);
+    assert.equal(result.skipped.length, 2);
+    assert.ok(result.skipped.some((row) => row.code === "not_found"));
+    assert.ok(result.skipped.some((row) => row.code === "invalid_email"));
+    assert.equal(store.getContact(first.contacts[0].id).email, "kim.dale@bulk-email.example");
+    assert.equal(store.getContact(second.contacts[0].id).email, "shipping@bulk-email.example");
+
+    assert.throws(
+      () => store.updateContactsBulkEmail(Array.from({ length: 101 }, (_, i) => ({ contact_id: i + 1, email: null }))),
+      (error: unknown) => error instanceof RuleError && error.code === "validation",
+    );
+  });
+
+  it("permanently deletes a real company and cascades contacts, drafts, activities, CRM, and DNC", () => {
+    const company = store.createCompany({
+      name: "Phone Only Harvest Drop",
+      stage: "replied",
+      contact: {
+        first_name: "Kim",
+        last_name: "Noemail",
+        title: "Clerk",
+        phone: "229-555-0100",
+      },
+    });
+    store.upsertCrm(company.id, {
+      freight_profile: "phone only",
+      decision_notes: "nothing published",
+    });
+    const draft = store.createFirstTouchDraft({
+      company_id: company.id,
+      contact_id: company.contacts[0].id,
+      hook_line: "you ship food from Valdosta and may need dry van truckload",
+    });
+    assert.equal(draft.status, "draft");
+    store.addDnc({ company_id: company.id, reason: "Harvest cleanup — no published email." });
+    assert.equal(company.is_example, 0);
+
+    const result = store.deleteCompany(company.id);
+    assert.deepEqual(result, { deleted: true, id: company.id });
+    assert.throws(
+      () => store.getCompany(company.id),
+      (error: unknown) => error instanceof RuleError && error.code === "not_found",
+    );
+
+    const database = dbMod.getDb();
+    assert.equal(
+      (database.prepare("SELECT COUNT(*) AS n FROM contacts WHERE company_id = ?").get(company.id) as { n: number }).n,
+      0,
+    );
+    assert.equal(
+      (database.prepare("SELECT COUNT(*) AS n FROM drafts WHERE company_id = ?").get(company.id) as { n: number }).n,
+      0,
+    );
+    assert.equal(
+      (database.prepare("SELECT COUNT(*) AS n FROM activities WHERE company_id = ?").get(company.id) as { n: number }).n,
+      0,
+    );
+    assert.equal(
+      (database.prepare("SELECT COUNT(*) AS n FROM crm_records WHERE company_id = ?").get(company.id) as { n: number }).n,
+      0,
+    );
+    assert.equal(
+      (database.prepare("SELECT COUNT(*) AS n FROM dnc WHERE company_id = ?").get(company.id) as { n: number }).n,
+      0,
+    );
+
+    assert.throws(
+      () => store.deleteCompany(9_999_999),
+      (error: unknown) => error instanceof RuleError && error.code === "not_found",
+    );
+    assert.ok(store.listCompanies().some((row) => row.id !== company.id));
+  });
+
+  it("bulk-deletes real companies and skips unknown ids", () => {
+    const keep = store.createCompany({
+      name: "Keep After Bulk Delete",
+      contact: { first_name: "Rita", last_name: "Cole", email: "rita.cole@keep-bulk.example" },
+    });
+    const dropA = store.createCompany({ name: "Bulk Delete A", contact: { first_name: "Shipping" } });
+    const dropB = store.createCompany({ name: "Bulk Delete B", contact: { first_name: "Shipping" } });
+    const result = store.deleteCompaniesBulk([dropA.id, 9_999_999, dropB.id]);
+    assert.equal(result.deleted.length, 2);
+    assert.ok(result.deleted.every((row) => row.deleted === true));
+    assert.equal(result.skipped.length, 1);
+    assert.equal(result.skipped[0].code, "not_found");
+    assert.throws(
+      () => store.getCompany(dropA.id),
+      (error: unknown) => error instanceof RuleError && error.code === "not_found",
+    );
+    assert.equal(store.getCompany(keep.id).contacts[0].email, "rita.cole@keep-bulk.example");
+
+    assert.throws(
+      () => store.deleteCompaniesBulk(Array.from({ length: 101 }, (_, i) => i + 1)),
+      (error: unknown) => error instanceof RuleError && error.code === "validation",
+    );
+  });
 });
