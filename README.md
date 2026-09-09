@@ -151,7 +151,17 @@ Each lead includes `quality: { score, tier, reason }`. The same object is on com
 
 Email may be `null`. Incomplete or invented-looking emails are rejected (`assertRealEmail`). A switchboard contact (for example first name `Shipping` with no last name) is allowed when there is no named person. Those rows stay off the main lead list.
 
+Published emails that operators may store: a **personal** work address, or a **published generic inbox** (`shipping@`, `logistics@`, `traffic@`, `dispatch@`, and `sales@` when that is the published shipper desk). Never invent an unpublished personal email. After a harvest, delete phone-only companies with nothing published. Going forward, only add leads that already have a published email.
+
 `POST /api/companies/bulk` — `{ "companies": [ ... ] }` same object shape, max 50, all-or-nothing transaction. Use this to load a review batch.
+
+`PATCH /api/contacts/:id` — set a published email (or other fields) on an existing contact. JSON body (all optional): `{ email, phone, title, first_name, last_name }`. `email` may be `null` to clear. Validated with `assertRealEmail` (published generics allowed). Updating email re-scores quality on the next company/lead load and leaves unsent first-touch drafts sendable — drafts read `contact.email` at send time. Does not invent an address.
+
+`POST /api/contacts/bulk-email` — `{ "updates": [{ "contact_id", "email" }] }`, max 100, one transaction. Invalid or unknown rows are skipped and returned in `skipped`; valid rows are applied. Use this to stamp harvest emails quickly.
+
+`DELETE /api/companies/:id` — permanently delete a company, including real (`is_example = 0`) rows, and cascade its contacts, drafts, activities, CRM records, and related DNC rows. Returns `{ deleted: true, id }`. Unknown ids return 404.
+
+`POST /api/companies/bulk-delete` — `{ "ids": [ ... ] }`, max 100, one transaction. Unknown ids are skipped and returned in `skipped`. Use this after harvest to drop phone-only leads with nothing published.
 
 `POST /api/examples/purge` — permanently deletes every `is_example = 1` company and its contacts, drafts, activities, CRM records, and related DNC rows. Does not delete real (`is_example = 0`) rows. After purge, the next boot does not re-seed fake shippers.
 
