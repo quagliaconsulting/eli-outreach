@@ -53,7 +53,9 @@ export const LOCKED_FIRST_TOUCH_TEMPLATES: Record<
 > = {
   food_beverage: {
     subject: "Temperature-controlled freight for {{Company}}",
-    body: `I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with food and beverage shippers such as Perdue, Tillamook, Reser's Fine Foods and Dole Fresh, moving everything from frozen ice cream at -20°F to fresh produce at 36°F.
+    body: `Hello {{FirstName}},
+
+I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with food and beverage shippers such as Perdue, Tillamook, Reser's Fine Foods and Dole Fresh, moving everything from frozen ice cream at -20°F to fresh produce at 36°F.
 
 We understand the cold chain, the delivery windows and the rejection risk that come with your products, and we build our capacity around them.
 
@@ -61,7 +63,9 @@ Would you be free for a quick introduction to see if Elberta's capabilities alig
   },
   raw_materials: {
     subject: "Coil and tubing freight for {{Company}}",
-    body: `I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with steel and aluminum producers such as Gerdau, Constellium and Reliance, transporting aluminum and steel coils and tubing.
+    body: `Hello {{FirstName}},
+
+I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with steel and aluminum producers such as Gerdau, Constellium and Reliance, transporting aluminum and steel coils and tubing.
 
 We know the securement, weight and equipment requirements this freight demands, and we have the carrier network to handle it reliably.
 
@@ -69,7 +73,9 @@ Would you be free for a quick introduction to see if Elberta's capabilities alig
   },
   chemical: {
     subject: "Hazmat and solvent freight for {{Company}}",
-    body: `I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with chemical and coatings companies such as Sherwin-Williams, AkzoNobel and Trinseo, transporting hazardous materials, solvents and paint-related products.
+    body: `Hello {{FirstName}},
+
+I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with chemical and coatings companies such as Sherwin-Williams, AkzoNobel and Trinseo, transporting hazardous materials, solvents and paint-related products.
 
 We understand the compliance, documentation and carrier vetting that hazmat freight requires, and we manage it as part of every shipment.
 
@@ -77,7 +83,9 @@ Would you be free for a quick introduction to see if Elberta's capabilities alig
   },
   manufacturing: {
     subject: "Manufacturing freight support for {{Company}}",
-    body: `I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We support manufacturers on both the automotive side, including Adient, Flex-N-Gate and OpMobility, and the building products side, including Woodgrain, Stella-Jones and Weyerhaeuser.
+    body: `Hello {{FirstName}},
+
+I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We support manufacturers on both the automotive side, including Adient, Flex-N-Gate and OpMobility, and the building products side, including Woodgrain, Stella-Jones and Weyerhaeuser.
 
 We know how much your operations depend on freight arriving on time and intact, and we plan our capacity around your production schedules.
 

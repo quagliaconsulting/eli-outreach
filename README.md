@@ -17,7 +17,7 @@ One main screen:
 - Actions: **Approve**, **Copy**, **Mark sent**. When send is on, Approve transmits the locked draft via SMTP and marks it sent. Copy and Mark sent remain for manual fallback. When send is off, Approve only marks the draft approved
 - A small strip for sender name and phone. Sender name is the From display name (default Maxwell Bacon). From / Reply-To stay `max@elbertalogistics.net` — never `sales@`
 
-On boot and load, unsent first-touch drafts (`draft`, `approved`, `copied`, and still-open `blocked`) are rewritten to the current locked vertical copy so the console cannot stay on old wording. Drafts already `sent` are left alone. New named leads without a draft get one from the locked template. An internal hook may still be stored in `hook_line` / notes; it is not inserted into the email. DNC still blocks first-touch. Nothing is deleted.
+On boot and load (including Railway `GET /api/health`), unsent first-touch drafts (`draft`, `approved`, `copied`, and still-open `blocked`) are rewritten to the current locked vertical copy, including the `Hello FirstName,` / `Hello,` greeting, so the console cannot stay on old wording. Drafts already `sent` are left alone. New named leads without a draft get one from the locked template. An internal hook may still be stored in `hook_line` / notes; it is not inserted into the email. DNC still blocks first-touch. Nothing is deleted.
 
 Hard rules (enforced in code, not as a sermon in the header):
 
@@ -28,7 +28,7 @@ Hard rules (enforced in code, not as a sermon in the header):
 - Cloudflare Email Routing stays off. Do not reintroduce it
 - CRM records are allowed only after status is **Replied**
 - DNC matches on company, contact, email, or phone and blocks first-touch
-- First-touch copy is a locked industry template. Do not sales-ify Max's wording. No hook line, packet URL, or 15-minute calendar ask in the email
+- First-touch copy is a locked industry template. Open with `Hello FirstName,` (or `Hello,` for desks). Do not sales-ify Max's wording. No hook line, packet URL, or 15-minute calendar ask in the email
 - No LTL lead and no site-visit language in first-touch
 - Packet URL `https://elbertalogistics.com/services/` may still be stored in settings; it is not part of first-touch
 - Timezone is `America/New_York`
@@ -36,10 +36,14 @@ Hard rules (enforced in code, not as a sermon in the header):
 
 Locked first-touch — pick **one** vertical from `company.industry` plus name/notes heuristics (`selectVertical`). Fallback is Manufacturing.
 
+Every vertical opens with `Hello {{FirstName}},` then a blank line, then Max's copy. `{{FirstName}}` is the contact's `first_name` when it is a real person name. Missing names, desk labels (`Shipping`, `Sales`, `Traffic`, `Logistics`, `Desk`, `Team`, `Coordinator` as the only name, `Shipping Desk`, `Lincoln Logistics Desk`, `Sinton Dispatch`, and similar departments), and email local-parts that are not already a person name on the contact record fall back to `Hello,`. Do not invent a first name from the mailbox.
+
 Food and Beverage:
 
 ```
 Subject: Temperature-controlled freight for {{Company}}
+Hello {{FirstName}},
+
 I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with food and beverage shippers such as Perdue, Tillamook, Reser's Fine Foods and Dole Fresh, moving everything from frozen ice cream at -20°F to fresh produce at 36°F.
 
 We understand the cold chain, the delivery windows and the rejection risk that come with your products, and we build our capacity around them.
@@ -51,6 +55,8 @@ Raw Materials (steel/aluminum coils & tubing; scrap/metals that fit that messagi
 
 ```
 Subject: Coil and tubing freight for {{Company}}
+Hello {{FirstName}},
+
 I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with steel and aluminum producers such as Gerdau, Constellium and Reliance, transporting aluminum and steel coils and tubing.
 
 We know the securement, weight and equipment requirements this freight demands, and we have the carrier network to handle it reliably.
@@ -62,6 +68,8 @@ Chemical (coatings, solvents, hazmat, paint, heat-treat chemistry when clearly c
 
 ```
 Subject: Hazmat and solvent freight for {{Company}}
+Hello {{FirstName}},
+
 I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with chemical and coatings companies such as Sherwin-Williams, AkzoNobel and Trinseo, transporting hazardous materials, solvents and paint-related products.
 
 We understand the compliance, documentation and carrier vetting that hazmat freight requires, and we manage it as part of every shipment.
@@ -73,6 +81,8 @@ Manufacturing (default — auto, building products, packaging plants, furniture,
 
 ```
 Subject: Manufacturing freight support for {{Company}}
+Hello {{FirstName}},
+
 I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We support manufacturers on both the automotive side, including Adient, Flex-N-Gate and OpMobility, and the building products side, including Woodgrain, Stella-Jones and Weyerhaeuser.
 
 We know how much your operations depend on freight arriving on time and intact, and we plan our capacity around your production schedules.
