@@ -65,6 +65,18 @@ describe("selectVertical", () => {
     );
   });
 
+  it("classifies polymer and plastics recycling as chemical, not manufacturing", () => {
+    assert.equal(selectVertical("Plastics recycling"), "chemical");
+    assert.equal(selectVertical("Polymer processing"), "chemical");
+    assert.equal(selectVertical("", { name: "Custom Polymers" }), "chemical");
+    assert.equal(
+      selectVertical("Recycling", { name: "Custom Polymers", notes: "plastics recycling" }),
+      "chemical",
+    );
+    assert.equal(selectVertical("Recycling"), "manufacturing");
+    assert.equal(selectVertical("Scrap recycling"), "raw_materials");
+  });
+
   it("defaults unclear, auto, building products, packaging, furniture, and lumber to manufacturing", () => {
     assert.equal(selectVertical(""), "manufacturing");
     assert.equal(selectVertical("   "), "manufacturing");
@@ -100,17 +112,21 @@ describe("locked first-touch template", () => {
       rendered.body,
       `Hello Elena,
 
-I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with food and beverage shippers such as Perdue, Tillamook, Reser's Fine Foods and Dole Fresh, moving everything from frozen ice cream at -20°F to fresh produce at 36°F.
+This is Max with Elberta Logistics. We move food and beverage freight for shippers like Perdue, Tillamook, Reser's Fine Foods and Dole Fresh. That's everything from frozen ice cream at -20°F to fresh produce at 36°F.
 
-We understand the cold chain, the delivery windows and the rejection risk that come with your products, and we build our capacity around them.
+We know the cold chain, the delivery windows and the rejection risk that come with that freight, and we build capacity around it.
 
-Would you be free for a quick introduction to see if Elberta's capabilities align with your current supply chain strategy?
+Would you have a few minutes for a quick intro on your temperature-controlled lanes?
 
 ${LOCKED_FIRST_TOUCH_SIGNATURE}`,
     );
     assert.match(rendered.body, /248-318-6170$/);
     assert.match(rendered.body, /850-692-2511 x 148\n248-318-6170/);
     assert.doesNotMatch(rendered.body, /hook_line|Hi Elena|15 minutes|elbertalogistics\.com\/services|850-702-9224|Business Development|^Best,/m);
+    assert.doesNotMatch(
+      rendered.body,
+      /I'm reaching out|freight solutions company|over 15 years|capabilities align|supply chain strategy|Thank you,|International Solutions LLC/,
+    );
   });
 
   it("renders the raw materials, chemical, and manufacturing bodies exactly", () => {
@@ -119,23 +135,51 @@ ${LOCKED_FIRST_TOUCH_SIGNATURE}`,
       industry: "Metals",
     });
     assert.equal(steel.subject, "Coil and tubing freight for Ironwood Steel Supply");
+    assert.match(steel.body, /^Hello,\n\nMax Bacon here with Elberta Logistics/);
     assert.match(steel.body, /Gerdau, Constellium and Reliance/);
-    assert.match(steel.body, /Thank you,\n\nMaxwell Bacon\nDirector of Customer Sales, Elberta Logistics International Solutions LLC/);
+    assert.match(steel.body, /If you're moving coil or tubing, would you be open to a short call\?/);
+    assert.match(steel.body, /Thanks,\n\nMaxwell Bacon\nDirector of Customer Sales, Elberta Logistics/);
+    assert.doesNotMatch(steel.body, /International Solutions LLC|Thank you,/);
 
     const coatings = fillLockedFirstTouch({
       company: "Gulf Coatings",
       industry: "Coatings",
     });
     assert.equal(coatings.subject, "Hazmat and solvent freight for Gulf Coatings");
+    assert.match(coatings.body, /^Hello,\n\nThis is Max Bacon with Elberta Logistics/);
     assert.match(coatings.body, /Sherwin-Williams, AkzoNobel and Trinseo/);
+    assert.match(coatings.body, /If you've got a few minutes, I'd like a quick intro on how you're covering that freight\./);
 
     const mill = fillLockedFirstTouch({
       company: "Oakridge Furniture Works",
       industry: "Furniture manufacturing",
     });
     assert.equal(mill.subject, "Manufacturing freight support for Oakridge Furniture Works");
+    assert.match(mill.body, /^Hello,\n\nMax with Elberta Logistics/);
     assert.match(mill.body, /Adient, Flex-N-Gate and OpMobility/);
     assert.match(mill.body, /Woodgrain, Stella-Jones and Weyerhaeuser/);
+    assert.match(mill.body, /Would you be open to a short intro to talk through your lanes\?/);
+  });
+
+  it("keeps proof facts but does not reuse one opener or CTA across verticals", () => {
+    const food = fillLockedFirstTouch(foodVars).body;
+    const steel = fillLockedFirstTouch({ company: "Ironwood Steel Supply", industry: "Metals" }).body;
+    const chemical = fillLockedFirstTouch({ company: "Gulf Coatings", industry: "Coatings" }).body;
+    const mill = fillLockedFirstTouch({
+      company: "Oakridge Furniture Works",
+      industry: "Furniture manufacturing",
+    }).body;
+
+    const openers = [food, steel, chemical, mill].map((body) => body.split("\n\n")[1] ?? "");
+    assert.equal(new Set(openers).size, 4);
+    const asks = [food, steel, chemical, mill].map((body) => body.split("\n\n")[3] ?? "");
+    assert.equal(new Set(asks).size, 4);
+    for (const body of [food, steel, chemical, mill]) {
+      assert.doesNotMatch(
+        body,
+        /I'm reaching out|freight solutions company|over 15 years|capabilities align|current supply chain strategy/,
+      );
+    }
   });
 
   it("keeps the locked signature even when settings name and phone differ", () => {
@@ -149,7 +193,7 @@ ${LOCKED_FIRST_TOUCH_SIGNATURE}`,
     });
     assert.match(rendered.body, /Maxwell Bacon/);
     assert.match(rendered.body, /248-318-6170$/);
-    assert.match(rendered.body, /^Hello Rita,\n\nI'm reaching out from Elberta Logistics/);
+    assert.match(rendered.body, /^Hello Rita,\n\nThis is Max with Elberta Logistics/);
     assert.doesNotMatch(rendered.body, /Jim|850-702-9224|internal note only/);
   });
 
@@ -178,7 +222,7 @@ ${LOCKED_FIRST_TOUCH_SIGNATURE}`,
         industry: "Food processing",
         firstName,
       });
-      assert.match(rendered.body, /^Hello,\n\nI'm reaching out from Elberta Logistics/);
+      assert.match(rendered.body, /^Hello,\n\nThis is Max with Elberta Logistics/);
       assert.doesNotMatch(rendered.body, /Hello (Shipping|Sales|Traffic|Logistics|Desk|Team|Coordinator|John)/);
       assert.doesNotMatch(rendered.body, /john\.smith|shipping@/i);
     }
@@ -189,7 +233,7 @@ ${LOCKED_FIRST_TOUCH_SIGNATURE}`,
       company: "Local Part Co",
       industry: "Furniture manufacturing",
     });
-    assert.match(rendered.body, /^Hello,\n\nI'm reaching out from Elberta Logistics/);
+    assert.match(rendered.body, /^Hello,\n\nMax with Elberta Logistics/);
     assert.doesNotMatch(rendered.body, /Hello \{\{FirstName\}\}/);
   });
 
