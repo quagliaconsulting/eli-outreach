@@ -358,6 +358,7 @@ describe("ops store rules", () => {
     assert.ok(lead.draft);
     assert.equal(lead.draft.status, "draft");
     assert.equal(lead.draft.subject, "Temperature-controlled freight for Named Decision Co");
+    assert.match(lead.draft.body, /^Hello Rita,\n\nI'm reaching out from Elberta Logistics/);
     assert.match(lead.draft.body, /Perdue, Tillamook, Reser's Fine Foods and Dole Fresh/);
     assert.match(lead.draft.body, /Maxwell Bacon\nDirector of Customer Sales, Elberta Logistics International Solutions LLC\n850-692-2511 x 148\n248-318-6170$/);
     assert.doesNotMatch(lead.draft.body, /Plant ships dry van outbound to Florida DCs/);
@@ -793,12 +794,38 @@ describe("ops store rules", () => {
     const nextSent = store.getDraft(sentDraft.id);
     assert.equal(nextFood.status, "approved");
     assert.equal(nextFood.subject, "Temperature-controlled freight for Live Food Shipper");
+    assert.match(nextFood.body, /^Hello Elena,\n\nI'm reaching out from Elberta Logistics/);
     assert.match(nextFood.body, /248-318-6170$/);
     assert.equal(nextMill.status, "copied");
     assert.equal(nextMill.subject, "Manufacturing freight support for Live Mill Shipper");
+    assert.match(nextMill.body, /^Hello Claire,\n\nI'm reaching out from Elberta Logistics/);
     assert.equal(nextSent.status, "sent");
     assert.equal(nextSent.subject, "OLD SENT SUBJECT");
     assert.equal(nextSent.body, "Old sent body.");
+  });
+
+  it("greets a real first name and falls back to Hello, for desk labels without inventing from email", () => {
+    const desk = store.createCompany({
+      name: "Desk Greeting Co",
+      industry: "Food processing",
+      contact: {
+        first_name: "Traffic Desk",
+        last_name: "",
+        title: "Traffic",
+        email: "jane.doe@desk-greeting.example",
+      },
+    });
+    store.getWorkstation("open");
+    const deskDraft = store.listDrafts().find((d) => d.company_id === desk.id);
+    assert.ok(deskDraft);
+    assert.match(deskDraft.body, /^Hello,\n\nI'm reaching out from Elberta Logistics/);
+    assert.doesNotMatch(deskDraft.body, /Hello (Jane|Traffic)/);
+
+    store.updateContact(desk.contacts[0].id, { first_name: "Jane" });
+    assert.ok(store.refreshUnsentFirstTouchDrafts() >= 1);
+    const renamed = store.getDraft(deskDraft.id);
+    assert.match(renamed.body, /^Hello Jane,\n\nI'm reaching out from Elberta Logistics/);
+    assert.equal(renamed.status, "draft");
   });
 
   it("patches legacy Max / 850-702-9224 settings to Maxwell Bacon and the cell", () => {

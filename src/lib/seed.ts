@@ -442,11 +442,14 @@ export function seedExampleCompanies(db: Database.Database): void {
       }
 
       if (company.draft && primaryId) {
+        const primary =
+          company.contacts.find((item) => item.is_primary) ?? company.contacts[0];
         const rendered = fillLockedFirstTouch({
           company: company.name,
           industry: company.industry,
           notes: company.notes,
           name: company.name,
+          firstName: primary?.first_name,
         });
         insertDraft.run(
           companyId,

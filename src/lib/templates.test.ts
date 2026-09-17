@@ -1,13 +1,20 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { LOCKED_FIRST_TOUCH_SIGNATURE } from "./constants";
-import { fillLockedFirstTouch, isLockedFirstTouch, selectVertical } from "./templates";
+import {
+  fillLockedFirstTouch,
+  firstTouchGreeting,
+  isLockedFirstTouch,
+  personFirstName,
+  selectVertical,
+} from "./templates";
 
 const foodVars = {
   company: "Pinecrest Produce Co.",
   industry: "Produce / food",
   notes: "Seasonal outbound produce into the Southeast.",
   name: "Pinecrest Produce Co.",
+  firstName: "Elena",
 };
 
 describe("selectVertical", () => {
@@ -91,7 +98,9 @@ describe("locked first-touch template", () => {
     assert.equal(rendered.subject, "Temperature-controlled freight for Pinecrest Produce Co.");
     assert.equal(
       rendered.body,
-      `I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with food and beverage shippers such as Perdue, Tillamook, Reser's Fine Foods and Dole Fresh, moving everything from frozen ice cream at -20°F to fresh produce at 36°F.
+      `Hello Elena,
+
+I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with food and beverage shippers such as Perdue, Tillamook, Reser's Fine Foods and Dole Fresh, moving everything from frozen ice cream at -20°F to fresh produce at 36°F.
 
 We understand the cold chain, the delivery windows and the rejection risk that come with your products, and we build our capacity around them.
 
@@ -140,7 +149,48 @@ ${LOCKED_FIRST_TOUCH_SIGNATURE}`,
     });
     assert.match(rendered.body, /Maxwell Bacon/);
     assert.match(rendered.body, /248-318-6170$/);
-    assert.doesNotMatch(rendered.body, /Jim|850-702-9224|internal note only|Rita/);
+    assert.match(rendered.body, /^Hello Rita,\n\nI'm reaching out from Elberta Logistics/);
+    assert.doesNotMatch(rendered.body, /Jim|850-702-9224|internal note only/);
+  });
+
+  it("falls back to Hello, for missing, desk, and department first names", () => {
+    const desks = [
+      "",
+      "   ",
+      "Shipping",
+      "Sales",
+      "Traffic",
+      "Logistics",
+      "Desk",
+      "Team",
+      "Coordinator",
+      "Shipping Desk",
+      "Sales Desk",
+      "Traffic Desk",
+      "Lincoln Logistics Desk",
+      "Sinton Dispatch",
+      "john.smith",
+      "shipping@plant.example",
+    ];
+    for (const firstName of desks) {
+      const rendered = fillLockedFirstTouch({
+        company: "Desk Label Co",
+        industry: "Food processing",
+        firstName,
+      });
+      assert.match(rendered.body, /^Hello,\n\nI'm reaching out from Elberta Logistics/);
+      assert.doesNotMatch(rendered.body, /Hello (Shipping|Sales|Traffic|Logistics|Desk|Team|Coordinator|John)/);
+      assert.doesNotMatch(rendered.body, /john\.smith|shipping@/i);
+    }
+  });
+
+  it("does not invent a greeting from an email local-part that is not the contact first name", () => {
+    const rendered = fillLockedFirstTouch({
+      company: "Local Part Co",
+      industry: "Furniture manufacturing",
+    });
+    assert.match(rendered.body, /^Hello,\n\nI'm reaching out from Elberta Logistics/);
+    assert.doesNotMatch(rendered.body, /Hello \{\{FirstName\}\}/);
   });
 
   it("does not treat a rewritten body as locked", () => {
@@ -150,5 +200,23 @@ ${LOCKED_FIRST_TOUCH_SIGNATURE}`,
       isLockedFirstTouch(rendered.subject, `${rendered.body}\nCan I visit your warehouse?`, foodVars),
       false,
     );
+  });
+});
+
+describe("person first-name greeting", () => {
+  it("keeps real person names and rejects desk labels", () => {
+    assert.equal(personFirstName("Elena"), "Elena");
+    assert.equal(personFirstName("Marcus"), "Marcus");
+    assert.equal(personFirstName("Mary Ann"), "Mary Ann");
+    assert.equal(personFirstName("jean-luc"), "Jean-Luc");
+    assert.equal(personFirstName("ELENA"), "Elena");
+    assert.equal(personFirstName("Shipping"), null);
+    assert.equal(personFirstName("Coordinator"), null);
+    assert.equal(personFirstName("Lincoln Logistics Desk"), null);
+    assert.equal(personFirstName("Sinton Dispatch"), null);
+    assert.equal(personFirstName("john.smith"), null);
+    assert.equal(firstTouchGreeting("Rita"), "Hello Rita,");
+    assert.equal(firstTouchGreeting("Shipping Desk"), "Hello,");
+    assert.equal(firstTouchGreeting(""), "Hello,");
   });
 });

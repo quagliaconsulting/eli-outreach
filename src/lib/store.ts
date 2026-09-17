@@ -69,12 +69,16 @@ function patchLegacySenderSettings(): void {
     .run(DEFAULT_SENDER_NAME, DEFAULT_SENDER_PHONE);
 }
 
-function firstTouchVars(company: Pick<Company, "name" | "industry" | "notes">) {
+function firstTouchVars(
+  company: Pick<Company, "name" | "industry" | "notes">,
+  contact?: Pick<Contact, "first_name"> | null,
+) {
   return {
     company: company.name,
     industry: company.industry,
     notes: company.notes,
     name: company.name,
+    firstName: contact?.first_name ?? "",
   };
 }
 
@@ -104,7 +108,10 @@ export function refreshUnsentFirstTouchDrafts(): number {
       | Company
       | undefined;
     if (!company) continue;
-    const rendered = fillLockedFirstTouch(firstTouchVars(company));
+    const contact = db()
+      .prepare("SELECT first_name FROM contacts WHERE id = ?")
+      .get(draft.contact_id) as Pick<Contact, "first_name"> | undefined;
+    const rendered = fillLockedFirstTouch(firstTouchVars(company, contact));
     if (draft.subject === rendered.subject && draft.body === rendered.body) continue;
     update.run(rendered.subject, rendered.body, draft.id);
     updated += 1;
@@ -665,7 +672,7 @@ export function createFirstTouchDraft(input: {
   } catch (error) {
     if (error instanceof RuleError && error.code === "dnc_blocks_first_touch") {
       const settings = getSettings();
-      const rendered = fillLockedFirstTouch(firstTouchVars(company));
+      const rendered = fillLockedFirstTouch(firstTouchVars(company, contact));
       const result = db()
         .prepare(
           `INSERT INTO drafts (
@@ -689,7 +696,7 @@ export function createFirstTouchDraft(input: {
   }
 
   const settings = getSettings();
-  const rendered = fillLockedFirstTouch(firstTouchVars(company));
+  const rendered = fillLockedFirstTouch(firstTouchVars(company, contact));
 
   validateFirstTouchContent({
     hookLine: input.hook_line,
@@ -733,7 +740,7 @@ function loadApprovableDraft(id: number): {
   const settings = getSettings();
   if (draft.kind === "first_touch") {
     if (draft.status !== "sent") {
-      const rendered = fillLockedFirstTouch(firstTouchVars(company));
+      const rendered = fillLockedFirstTouch(firstTouchVars(company, contact));
       if (draft.subject !== rendered.subject || draft.body !== rendered.body) {
         db()
           .prepare("UPDATE drafts SET subject = ?, body = ? WHERE id = ?")
@@ -741,7 +748,7 @@ function loadApprovableDraft(id: number): {
         draft = getDraft(id);
       }
     }
-    const locked = isLockedFirstTouch(draft.subject, draft.body, firstTouchVars(company));
+    const locked = isLockedFirstTouch(draft.subject, draft.body, firstTouchVars(company, contact));
     if (!locked) {
       throw new RuleError("First-touch template is locked and no longer matches.", "locked_template");
     }
