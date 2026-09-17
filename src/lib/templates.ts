@@ -21,7 +21,7 @@ export type VerticalHints = {
 };
 
 const CHEMICAL =
-  /\b(chemicals?|coatings?|solvents?|hazmat|hazardous|paints?|resins?|adhesives?)\b|heat[- ]treat(?:ing)?(?:\s+chem)/i;
+  /\b(chemicals?|coatings?|solvents?|hazmat|hazardous|paints?|resins?|adhesives?|polymers?|plastics?|polyethylene|polypropylene)\b|heat[- ]treat(?:ing)?(?:\s+chem)/i;
 const FOOD_BEVERAGE =
   /\b(foods?|beverage|produce|dairy|meat|poultry|grocery|frozen|seafood|bakery|brewery|winery|distiller(?:y|ies)?|confection|snack|perishable|citrus|vegetable|fruit|bottl\w*)\b|cold[ -]?storage|ice[ -]?cream|packing house|packer|reefer/i;
 const RAW_MATERIALS =

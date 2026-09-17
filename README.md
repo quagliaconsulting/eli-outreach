@@ -44,11 +44,11 @@ Food and Beverage:
 Subject: Temperature-controlled freight for {{Company}}
 Hello {{FirstName}},
 
-I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with food and beverage shippers such as Perdue, Tillamook, Reser's Fine Foods and Dole Fresh, moving everything from frozen ice cream at -20°F to fresh produce at 36°F.
+This is Max with Elberta Logistics. We move food and beverage freight for shippers like Perdue, Tillamook, Reser's Fine Foods and Dole Fresh. That's everything from frozen ice cream at -20°F to fresh produce at 36°F.
 
-We understand the cold chain, the delivery windows and the rejection risk that come with your products, and we build our capacity around them.
+We know the cold chain, the delivery windows and the rejection risk that come with that freight, and we build capacity around it.
 
-Would you be free for a quick introduction to see if Elberta's capabilities align with your current supply chain strategy?
+Would you have a few minutes for a quick intro on your temperature-controlled lanes?
 ```
 
 Raw Materials (steel/aluminum coils & tubing; scrap/metals that fit that messaging):
@@ -57,24 +57,24 @@ Raw Materials (steel/aluminum coils & tubing; scrap/metals that fit that messagi
 Subject: Coil and tubing freight for {{Company}}
 Hello {{FirstName}},
 
-I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with steel and aluminum producers such as Gerdau, Constellium and Reliance, transporting aluminum and steel coils and tubing.
+Max Bacon here with Elberta Logistics. We haul steel and aluminum for producers like Gerdau, Constellium and Reliance, mostly coils and tubing.
 
-We know the securement, weight and equipment requirements this freight demands, and we have the carrier network to handle it reliably.
+That freight needs the right securement, weight handling and equipment, and we have the carrier network for it.
 
-Would you be free for a quick introduction to see if Elberta's capabilities align with your current supply chain strategy?
+If you're moving coil or tubing, would you be open to a short call?
 ```
 
-Chemical (coatings, solvents, hazmat, paint, heat-treat chemistry when clearly chemical/coatings):
+Chemical (coatings, solvents, hazmat, paint, polymers/plastics, heat-treat chemistry when clearly chemical/coatings):
 
 ```
 Subject: Hazmat and solvent freight for {{Company}}
 Hello {{FirstName}},
 
-I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We work with chemical and coatings companies such as Sherwin-Williams, AkzoNobel and Trinseo, transporting hazardous materials, solvents and paint-related products.
+This is Max Bacon with Elberta Logistics. We work with chemical and coatings companies such as Sherwin-Williams, AkzoNobel and Trinseo on hazardous materials, solvents and paint-related products.
 
-We understand the compliance, documentation and carrier vetting that hazmat freight requires, and we manage it as part of every shipment.
+Compliance, documentation and carrier vetting are part of every shipment.
 
-Would you be free for a quick introduction to see if Elberta's capabilities align with your current supply chain strategy?
+If you've got a few minutes, I'd like a quick intro on how you're covering that freight.
 ```
 
 Manufacturing (default — auto, building products, packaging plants, furniture, lumber mills as building products, general mfg):
@@ -83,20 +83,20 @@ Manufacturing (default — auto, building products, packaging plants, furniture,
 Subject: Manufacturing freight support for {{Company}}
 Hello {{FirstName}},
 
-I'm reaching out from Elberta Logistics, a freight solutions company with over 15 years in business. We support manufacturers on both the automotive side, including Adient, Flex-N-Gate and OpMobility, and the building products side, including Woodgrain, Stella-Jones and Weyerhaeuser.
+Max with Elberta Logistics. We support manufacturers on the automotive side, including Adient, Flex-N-Gate and OpMobility, and on building products, including Woodgrain, Stella-Jones and Weyerhaeuser.
 
-We know how much your operations depend on freight arriving on time and intact, and we plan our capacity around your production schedules.
+Those operations depend on freight arriving on time and intact, so we plan capacity around production schedules.
 
-Would you be free for a quick introduction to see if Elberta's capabilities align with your current supply chain strategy?
+Would you be open to a short intro to talk through your lanes?
 ```
 
 Locked signature on every vertical (office + cell; cell is always present):
 
 ```
-Thank you,
+Thanks,
 
 Maxwell Bacon
-Director of Customer Sales, Elberta Logistics International Solutions LLC
+Director of Customer Sales, Elberta Logistics
 850-692-2511 x 148
 248-318-6170
 ```
