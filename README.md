@@ -105,7 +105,7 @@ Plain-text is the source of truth. The optional HTML part uses a boring system s
 
 ## Local development
 
-Requires Node 20+.
+Requires Node 22.23.4+ (Node 20 is end of life).
 
 ```bash
 npm ci
@@ -212,7 +212,7 @@ Set these on the **eli-outreach** Railway service (not ElbertaLogistics / `@blas
 
 DNC still blocks first-touch (quiet suppress). Leads with no email on file cannot be sent — do not invent an address. Copy and Mark sent still work if you need to send from a mail client instead.
 
-`Dockerfile` is Node 20. `railway.toml` and `server.js` are in the repo root.
+`Dockerfile` is pinned to Node 22.23.4. `railway.toml` and `server.js` are in the repo root.
 
 ## Stack
 
