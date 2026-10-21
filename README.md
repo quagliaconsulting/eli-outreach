@@ -212,7 +212,7 @@ Set these on the **eli-outreach** Railway service (not ElbertaLogistics / `@blas
 
 DNC still blocks first-touch (quiet suppress). Leads with no email on file cannot be sent — do not invent an address. Copy and Mark sent still work if you need to send from a mail client instead.
 
-`Dockerfile` is pinned to Node 22.23.4. `railway.toml` and `server.js` are in the repo root.
+`Dockerfile` is pinned to Node 22.23.4. Railway `web` currently builds with Railpack, so `.nvmrc` also pins `22.23.4`. `railway.toml` and `server.js` are in the repo root.
 
 ## Stack
 
